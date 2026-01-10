@@ -6,6 +6,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  DXC_PATH: Microsoft.Direct3D.DXC.1.8.2505.32/build/native/bin/x64/dxc.exe
 
 jobs:
   build:
@@ -14,10 +15,10 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
-        submodules: "true"
+        submodules: true
 
     - name: Install DXC
-      run: nuget install Microsoft.Direct3D.DXC
+      run: nuget install Microsoft.Direct3D.DXC -Version 1.8.2505.32
 
     - name: Cache
       uses: actions/cache@v5
