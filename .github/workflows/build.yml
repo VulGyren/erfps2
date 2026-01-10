@@ -1,0 +1,35 @@
+name: Build Release Binary
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build
+      run: cargo build --release --verbose
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v6
+      with:
+        name: erfps2
+        path: |
+          target/x86_64-pc-windows-msvc/release/erfps2.dll
+          dist/erfps2.me3
