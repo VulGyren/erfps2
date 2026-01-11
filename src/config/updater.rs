@@ -7,6 +7,7 @@ use std::{
     time::{Instant, SystemTime},
 };
 
+use toml::de::Error as TomlError;
 use windows::{
     Win32::{
         Foundation::HMODULE,
@@ -69,8 +70,16 @@ impl ConfigUpdater {
 
     fn read_config(path: &Path) -> Result<Config, Arc<io::Error>> {
         let toml = fs::read_to_string(path)?;
-        let config = toml::from_str(&toml).map_err(io::Error::other)?;
+
+        let config = toml::from_str(&toml)
+            .inspect_err(Self::report_toml_error)
+            .map_err(io::Error::other)?;
+
         Ok(config)
+    }
+
+    fn report_toml_error(error: &TomlError) {
+        log::error!("error in {}: {error}", Self::CONFIG_NAME);
     }
 }
 
