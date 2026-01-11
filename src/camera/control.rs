@@ -16,7 +16,7 @@ use crate::{
     player::PlayerExt,
     program::Program,
     rva::CAM_WALL_RECOVERY_RVA,
-    shaders::{enable_crosshair, enable_dithering, enable_fisheye_distortion},
+    shaders::{enable_crosshair, enable_dithering, enable_fov_correction},
 };
 
 #[derive(Default)]
@@ -31,6 +31,8 @@ pub struct CameraState {
     pub tpf: f32,
     pub trans_time: f32,
     pub angle_limit: f32,
+    pub correct_use_barrel: bool,
+    pub correct_strength: f32,
     pub saved_angle_limit: Option<f32>,
     pub in_head_offset_y: f32,
     pub in_head_offset_z: f32,
@@ -135,7 +137,13 @@ impl CameraContext {
 
             self.lock_tgt.is_lock_on_requested = false;
 
-            enable_fisheye_distortion(state.first_person);
+            enable_fov_correction(
+                state.first_person,
+                state.correct_strength,
+                state.correct_use_barrel,
+                state.fov,
+            );
+
             enable_dithering(!state.first_person);
 
             self.player.enable_face_model(!state.first_person);
@@ -292,6 +300,8 @@ impl Default for CameraState {
             tpf: const { 1.0 / 60.0 },
             trans_time: 0.0,
             angle_limit: const { f32::to_radians(50.0) },
+            correct_use_barrel: false,
+            correct_strength: 0.5,
             saved_angle_limit: None,
             in_head_offset_y: 0.020,
             in_head_offset_z: -0.045,

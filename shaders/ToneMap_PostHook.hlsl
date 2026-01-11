@@ -28,7 +28,8 @@ cbuffer cbToneMap : register(b1)
     float4 g_vBloomScaleParam;
     float4x3 g_mtxColorMultiplyer;
     float4 g_vChromaticAberrationRG;
-    float4 g_vChromaticAberrationB;
+    float2 g_vChromaticAberrationB;
+    float2 g_ErfpsCorrectParam;
     int4 g_bEnableFlags;
     float4 g_vFeedBackBlurParam;
     float4 g_vVignettingParam;
@@ -43,33 +44,91 @@ cbuffer cbToneMap : register(b1)
 
 SamplerState SS_ClampLinear : register(s1);
 
+// Simple fisheye distortion shader.
+float2 MapUvFisheye(float2 uv)
+{
+    float2 c = uv - 0.5;
+
+    float r2 = c.x * c.x;
+    float strength = g_ErfpsCorrectParam.x;
+
+    float f = 1.0 + strength * sqrt(r2) * r2;
+    float fMax = 1.0 + strength * 0.125;
+
+    return c * f / fMax + 0.5;
+}
+
+// Source: https://www.decarpentier.nl/lens-distortion
+//
+// Copyright (c) 2015, Giliam de Carpentier
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+// 
+// 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+// 
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the 
+// documentation and/or other materials provided with the distribution.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED 
+// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+float2 MapUvBarrel(float2 uv)
+{
+    float strength = g_ErfpsCorrectParam.x;
+    float height = g_ErfpsCorrectParam.y * g_vCameraParam.y;
+    float aspectRatio = g_vCameraParam.x;
+    float cylindricalRatio = 1.414;
+
+    float scaledHeight = strength * height;
+    float cylAspectRatio = aspectRatio * cylindricalRatio;
+    float aspectDiagSq = aspectRatio * aspectRatio + 1.0;
+    float diagSq = scaledHeight * scaledHeight * aspectDiagSq;
+    float2 signedUV = 2.0 * uv - 1.0;
+
+    float z = 0.5 * sqrt(diagSq + 1.0) + 0.5;
+    float ny = (z - 1.0) / (cylAspectRatio * cylAspectRatio + 1.0);
+
+    float2 vUVDot = sqrt(ny) * float2(cylAspectRatio, 1.0) * signedUV;
+    float3 vUV = float3(0.5, 0.5, 1.0) * z + float3(-0.5, -0.5, 0.0);
+    vUV.xy += uv;
+
+    float3 uvp = vUV - dot(vUVDot, vUVDot) * float3(-0.5, -0.5, -1.0);
+    return uvp.xy / uvp.z;
+}
+
 float4 PSMain(float4 position : SV_Position, float3 coord : TEXCOORD) : SV_TARGET
 {
     float2 xy = coord.xy;
 
     if (g_ErfpsFlags & 1) {
+        // Apply FOV correction.
+        if (g_ErfpsFlags & 4) {
+            xy = MapUvBarrel(xy);
+        } else {
+            xy = MapUvFisheye(xy);
+        }
+    }
+
+    if (g_ErfpsFlags & 2) {
+        // Draw crosshair.
         float2 c = xy - 0.5;
         float2 cScreen = abs(c) * g_vChromaticAberrationShapeParam.xy * g_dynamicScreenPercentage;
 
-        if ((g_ErfpsFlags & 2) && any(cScreen < 0.0014) && all(cScreen < 0.008)) {
+        if (any(cScreen < 0.0014) && all(cScreen < 0.008)) {
             float4 rgba = g_SourceTexture.SampleLevel(SS_ClampLinear, xy, 0);
             return float4((1.0 - rgba.rgb), 1.0);
         }
-
-        float r2 = c.x * c.x;
-        float fisheyeStrength = 0.55;
-
-        float f = 1.0 + fisheyeStrength * sqrt(r2) * r2;
-        float fMax = 1.0 + fisheyeStrength * 0.125;
-
-        xy = c * f / fMax + 0.5;
     }
 
     float2 xy2m1 = xy * 2.0 - 1.0;
 
     float2 chromaR = g_vChromaticAberrationRG.xy;
     float2 chromaG = g_vChromaticAberrationRG.zw;
-    float2 chromaB = g_vChromaticAberrationB.xy;
+    float2 chromaB = g_vChromaticAberrationB;
 
     float2 dynamicScreenPercentage = g_dynamicScreenPercentage;
     float2 texSizeReciprocal = g_texSizeReciprocal;

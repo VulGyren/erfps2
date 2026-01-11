@@ -2,7 +2,7 @@ use std::{
     arch::naked_asm,
     ffi::c_void,
     mem,
-    sync::atomic::{AtomicBool, AtomicU32, Ordering},
+    sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
 };
 
 use windows::{
@@ -64,41 +64,67 @@ pub fn hook_shaders(program: Program) -> eyre::Result<()> {
     }
 }
 
+static SHADER_FLAGS: AtomicU32 = AtomicU32::new(0);
+static SHADER_PARAMS: AtomicU64 = AtomicU64::new(0);
+
+pub fn enable_fov_correction(state: bool, strength: f32, use_barrel: bool, vfov: f32) {
+    let state = state && strength > 0.05;
+
+    set_shader_flag(state, 0);
+    set_shader_flag(use_barrel, 2);
+
+    if state {
+        let strength = strength.to_bits() as u64;
+        let width_ratio = f32::tan(vfov * 0.5).to_bits() as u64;
+
+        SHADER_PARAMS.store(strength | (width_ratio << 32), Ordering::Relaxed);
+    }
+}
+
+pub fn enable_crosshair(state: bool) {
+    set_shader_flag(state, 1);
+}
+
 unsafe fn hook_shader_cb(program: Program) -> eyre::Result<()> {
     #[unsafe(naked)]
     extern "C" fn fisheye_distortion_cb_hook() {
         naked_asm! {
             // Original code start...
-            "divss xmm1,xmm9",
-            "shufps xmm1,xmm1,0",
-            "movaps [rbp+0x150],xmm1",
+            "mov r8,[rsp+0x78]",
+            "lea rdx,[rbp-0x80]",
+            "mov rcx,[r14+0x08]",
             // ...original code end.
-            "push rax",
             // Forward the flags to the constant buffer (see "shaders/ToneMap_PostHook.hlsl").
             "mov eax,[rip+{}]",
-            "pinsrd xmm1,eax,3",
+            "mov [rbp-0x44],eax",
+            // Forward the screen width ratio to the shader (see above).
+            "mov rax,[rip+{}]",
+            "mov [rbp+0xa8],rax",
             // Force the shader on.
             "and al,1",
             "mov [r15+0xcb0],al",
-            "pop rax",
             "ret",
-            sym FLAGS,
+            sym SHADER_FLAGS,
+            sym SHADER_PARAMS,
         }
     }
 
-    // 00 CALL [0x08]
-    // 06 JMP 0x10
-    // 08 DQ `fisheye_distortion_cb_hook``
-    // 10 ...
+    // 00 CALL [0x0A]
+    // 06 JMP 0x15
+    // 08 JMP 0x00
+    // 0A DQ `fisheye_distortion_cb_hook`
+    // 12 int3 int3 int3
+    // 15 ...
     let cb_hook_buf = {
         let [b0, b1, b2, b3, b4, b5, b6, b7] =
             u64::to_le_bytes(fisheye_distortion_cb_hook as usize as u64);
         [
-            0xff, 0x15, 0x02, 0x00, 0x00, 0x00, 0xeb, 0x08, b0, b1, b2, b3, b4, b5, b6, b7,
+            0xff, 0x15, 0x04, 0x00, 0x00, 0x00, 0xeb, 0x0d, 0xeb, 0xf6, b0, b1, b2, b3, b4, b5, b6,
+            b7, 0xcc, 0xcc, 0xcc,
         ]
     };
 
-    let cb_hook_mem = program.derva::<[u8; 16]>(CB_FISHEYE_HOOK_RVA);
+    let cb_hook_mem = program.derva::<[u8; 21]>(CB_FISHEYE_HOOK_RVA);
 
     unsafe {
         VirtualProtect(
@@ -120,20 +146,10 @@ pub fn enable_dithering(state: bool) {
     ENABLE_DITHERING.store(state, Ordering::Relaxed);
 }
 
-pub fn enable_fisheye_distortion(state: bool) {
-    set_flag_inner(state, 0);
-}
-
-pub fn enable_crosshair(state: bool) {
-    set_flag_inner(state, 1);
-}
-
-static FLAGS: AtomicU32 = AtomicU32::new(0);
-
-fn set_flag_inner(state: bool, pos: u32) -> u32 {
+fn set_shader_flag(state: bool, pos: u32) -> u32 {
     let flag = 1 << pos;
     match state {
-        true => FLAGS.fetch_or(flag, Ordering::Relaxed),
-        false => FLAGS.fetch_and(!flag, Ordering::Relaxed),
+        true => SHADER_FLAGS.fetch_or(flag, Ordering::Relaxed),
+        false => SHADER_FLAGS.fetch_and(!flag, Ordering::Relaxed),
     }
 }
