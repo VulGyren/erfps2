@@ -295,7 +295,7 @@ impl DerefMut for CameraControl {
 impl Default for CameraState {
     fn default() -> Self {
         Self {
-            first_person: false,
+            first_person: true,
             fov: const { f32::to_radians(85.0) },
             tpf: const { 1.0 / 60.0 },
             trans_time: 0.0,
