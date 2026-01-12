@@ -129,6 +129,12 @@ float4 PSMain(float4 position : SV_Position, float3 coord : TEXCOORD) : SV_TARGE
 {
     float2 xy = coord.xy;
 
+    if (CrosshairTest(xy)) {
+        // Draw crosshair.
+        float4 rgba = g_SourceTexture.SampleLevel(SS_ClampLinear, xy, 0);
+        return float4((1.0 - rgba.rgb) * 0.9, rgba.a);
+    }
+
     if (g_ErfpsFlags & 1) {
         // Apply FOV correction.
         if (g_ErfpsFlags & 2) {
@@ -136,12 +142,6 @@ float4 PSMain(float4 position : SV_Position, float3 coord : TEXCOORD) : SV_TARGE
         } else {
             xy = MapUvFisheye(xy);
         }
-    }
-
-    if (CrosshairTest(xy)) {
-        // Draw crosshair.
-        float4 rgba = g_SourceTexture.SampleLevel(SS_ClampLinear, xy, 0);
-        return float4((1.0 - rgba.rgb) * 0.9, rgba.a);
     }
 
     float2 xy2m1 = xy * 2.0 - 1.0;
