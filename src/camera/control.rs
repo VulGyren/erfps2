@@ -3,7 +3,7 @@ use std::{
     collections::VecDeque,
     mem,
     ops::{Deref, DerefMut},
-    sync::{Mutex, MutexGuard},
+    sync::Mutex,
 };
 
 use eldenring::cs::{
@@ -84,13 +84,14 @@ struct CameraStabilizer {
 }
 
 impl CameraControl {
-    pub fn lock() -> MutexGuard<'static, LazyCell<Self>> {
+    pub fn scope<F: FnOnce(&mut CameraControl) -> R, R>(f: F) -> R {
         static STATE: Mutex<LazyCell<CameraControl>> =
             Mutex::new(LazyCell::new(CameraControl::new));
-        STATE.lock().unwrap()
+
+        f(&mut STATE.lock().unwrap())
     }
 
-    pub fn new() -> Self {
+    fn new() -> Self {
         let mut updater = ConfigUpdater::new().unwrap();
 
         let state = updater.get_or_update().map_or_else(
@@ -215,12 +216,14 @@ impl CameraState {
         );
     }
 
-    fn crosshair_if(&self, cond: bool) -> CrosshairKind {
-        if cond {
+    fn set_crosshair_if(&self, cond: bool) {
+        let crosshair = if cond {
             self.crosshair
         } else {
             CrosshairKind::None
-        }
+        };
+
+        set_crosshair(crosshair);
     }
 }
 
@@ -248,10 +251,12 @@ impl CameraContext {
 
             state.update_fov_correction();
 
-            enable_dithering(!state.first_person);
-            set_crosshair(state.crosshair_if(state.first_person));
+            let first_person = state.first_person();
 
-            self.player.enable_face_model(!state.first_person);
+            enable_dithering(!first_person);
+            state.set_crosshair_if(first_person);
+
+            self.player.enable_face_model(!first_person);
         }
     }
 
@@ -286,6 +291,10 @@ impl CameraContext {
     }
 
     pub fn update_cs_cam(&mut self, state: &mut CameraState) {
+        if !state.first_person() {
+            return;
+        }
+
         let camera_pos = self.camera_position(state);
 
         if !self.lock_tgt.is_locked_on && !self.player.is_on_ladder() && !self.player.is_in_throw()
@@ -312,7 +321,12 @@ impl CameraContext {
     }
 
     pub fn update_chr_cam(&mut self, state: &CameraState) {
-        set_crosshair(state.crosshair_if(!self.lock_tgt.is_locked_on));
+        let first_person = state.first_person();
+        state.set_crosshair_if(first_person && !self.lock_tgt.is_locked_on);
+
+        if !first_person {
+            return;
+        }
 
         self.player.enable_face_model(false);
 

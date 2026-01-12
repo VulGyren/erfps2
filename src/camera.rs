@@ -84,7 +84,7 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
                 move |param_1, param_2, param_3| {
                     // Setting this flag disables position interpolation for the camera attach
                     // point in the function below.
-                    let first_person = CameraControl::lock().first_person();
+                    let first_person = CameraControl::scope(|control| control.first_person());
                     let reset_camera = mem::replace(&mut (*param_1).reset_camera, first_person);
 
                     original(param_1, param_2, param_3);
@@ -162,38 +162,35 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn update_camera(tpf: f32, original: &dyn Fn()) {
-    let mut control = CameraControl::lock();
-    control.tpf = tpf;
+    let camera_updated = CameraControl::scope(|control| {
+        control.tpf = tpf;
 
-    if !control.first_person() {
-        drop(control);
+        if control.first_person()
+            && let (state, Some(context)) = control.state_and_context()
+        {
+            context.update_cs_cam(state);
+            return true;
+        }
+
+        false
+    });
+
+    if !camera_updated {
         original();
-        return;
     }
-
-    let (state, Some(context)) = control.state_and_context() else {
-        drop(control);
-        original();
-        return;
-    };
-
-    context.update_cs_cam(state);
 }
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn update_move_map_step(original: &dyn Fn()) {
-    let mut control = CameraControl::lock();
-    control.next_frame();
+    CameraControl::scope(|control| {
+        control.next_frame();
 
-    if let (state, Some(context)) = control.state_and_context() {
-        context.try_transition(state);
-
-        if state.first_person() {
+        if let (state, Some(context)) = control.state_and_context() {
+            context.try_transition(state);
             context.update_chr_cam(state);
         }
-    }
+    });
 
-    drop(control);
     original();
 }
 
@@ -201,37 +198,33 @@ unsafe fn update_move_map_step(original: &dyn Fn()) {
 unsafe fn update_lock_tgt(original: &dyn Fn()) {
     original();
 
-    let mut control = CameraControl::lock();
-
-    if control.first_person()
-        && let (_, Some(context)) = control.state_and_context()
-        && !context.player.is_sprinting()
-        && !context.player.is_riding()
-        && !context.player.is_on_ladder()
-        && !context.player.is_in_throw()
-    {
-        context.player.set_lock_on(true);
-    }
+    CameraControl::scope(|control| {
+        if control.first_person()
+            && let (_, Some(context)) = control.state_and_context()
+            && !context.player.is_sprinting()
+            && !context.player.is_riding()
+            && !context.player.is_on_ladder()
+            && !context.player.is_in_throw()
+        {
+            context.player.set_lock_on(true);
+        }
+    });
 }
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn update_chr_follow_cam(follow_cam: &mut ChrExFollowCam, original: &dyn Fn()) {
-    let mut control = CameraControl::lock();
-    let (state, _) = control.state_and_context();
+    CameraControl::scope(|control| control.state_and_context().0.update_follow_cam(follow_cam));
 
-    state.update_follow_cam(follow_cam);
-
-    drop(control);
     original();
 
-    if CameraControl::lock().first_person() {
+    if CameraControl::scope(|control| control.first_person()) {
         follow_cam.locked_on_cam_offset = 0.0;
     }
 }
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn wwise_listener_for_fp() -> Option<F32ViewMatrix> {
-    if !CameraControl::lock().first_person() {
+    if !CameraControl::scope(|control| control.first_person()) {
         return None;
     }
 
@@ -246,7 +239,7 @@ unsafe fn wwise_listener_for_fp() -> Option<F32ViewMatrix> {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn tae700_override(args: &mut [f32; 8]) {
-    if !CameraControl::lock().first_person() {
+    if !CameraControl::scope(|control| control.first_person()) {
         return;
     }
 
@@ -256,12 +249,12 @@ unsafe fn tae700_override(args: &mut [f32; 8]) {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn hand_posture_control(some_player: *const PlayerIns) -> Option<i32> {
-    let control = CameraControl::lock();
+    let first_person = CameraControl::scope(|control| control.first_person());
 
     let main_player = PlayerIns::main_player()?;
     let is_main_player = ptr::eq(some_player, main_player);
 
-    if !is_main_player || !control.first_person() || main_player.is_2h() {
+    if !first_person || !is_main_player || main_player.is_2h() {
         return None;
     }
 
