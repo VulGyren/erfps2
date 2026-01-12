@@ -100,12 +100,13 @@ unsafe fn hook_shader_cb(program: Program) -> eyre::Result<()> {
             // Forward the flags to the constant buffer (see "shaders/ToneMap_PostHook.hlsl").
             "mov eax,[rip+{}]",
             "mov [rbp-0x44],eax",
+            // Force the shader on.
+            "test eax,eax",
+            "setne al",
+            "mov [r15+0xcb0],al",
             // Forward the screen width ratio to the shader (see above).
             "mov rax,[rip+{}]",
             "mov [rbp+0xa8],rax",
-            // Force the shader on.
-            "and al,1",
-            "mov [r15+0xcb0],al",
             "ret",
             sym SHADER_FLAGS,
             sym SHADER_PARAMS,
