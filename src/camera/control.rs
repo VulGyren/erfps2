@@ -242,12 +242,11 @@ impl CameraContext {
             false => state.trans_time = 0.0,
         }
 
-        if (state.trans_time > STATE_TRANS_TIME
-            && self.lock_tgt.is_locked_on != self.lock_tgt.is_lock_on_requested)
-            || state.should_transition
-        {
+        let should_transition = state.should_transition;
+        state.should_transition = false;
+
+        if should_transition && !self.lock_tgt.is_locked_on {
             state.first_person = !state.first_person;
-            state.should_transition = false;
 
             self.lock_tgt.is_lock_on_requested = false;
 
@@ -259,6 +258,13 @@ impl CameraContext {
             state.set_crosshair_if(first_person);
 
             self.player.enable_face_model(!first_person);
+        }
+
+        if state.trans_time > STATE_TRANS_TIME
+            && !self.lock_tgt.is_locked_on
+            && self.lock_tgt.is_locked_on != self.lock_tgt.is_lock_on_requested
+        {
+            state.should_transition = true;
         }
     }
 
