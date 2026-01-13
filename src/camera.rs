@@ -200,7 +200,8 @@ unsafe fn update_lock_tgt(original: &dyn Fn()) {
 
     CameraControl::scope(|control| {
         if control.first_person()
-            && let (_, Some(context)) = control.state_and_context()
+            && let (state, Some(context)) = control.state_and_context()
+            && !state.can_transition()
             && !context.player.is_sprinting()
             && !context.player.is_riding()
             && !context.player.is_on_ladder()

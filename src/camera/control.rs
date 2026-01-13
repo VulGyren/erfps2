@@ -168,6 +168,11 @@ impl CameraState {
         }
     }
 
+    pub fn can_transition(&self) -> bool {
+        const STATE_TRANS_TIME: f32 = 0.233;
+        self.trans_time > STATE_TRANS_TIME
+    }
+
     fn try_update(
         &mut self,
         context: Option<CameraContext>,
@@ -231,8 +236,6 @@ impl CameraState {
 
 impl CameraContext {
     pub fn try_transition(&mut self, state: &mut CameraState) {
-        const STATE_TRANS_TIME: f32 = 0.233;
-
         let Ok(action_button_man) = (unsafe { CSActionButtonMan::instance() }) else {
             return;
         };
@@ -262,7 +265,7 @@ impl CameraContext {
             self.player.enable_face_model(!first_person);
         }
 
-        if state.trans_time > STATE_TRANS_TIME
+        if state.can_transition()
             && !self.lock_tgt.is_locked_on
             && self.lock_tgt.is_locked_on != self.lock_tgt.is_lock_on_requested
         {
