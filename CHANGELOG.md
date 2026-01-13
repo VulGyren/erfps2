@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.4] 2026-01-13
+
+### Added
+
+- Ability to scale the crosshair in erfps2.toml.
+- `crosshair.scale_x` and `crosshair.scale_y` erfps2.toml keys.
+- `crosshair.kind` erfps2.toml key.
+
+### Changed
+
+- Locking on is always prioritized over switching perspectives.
+
+### Removed
+
+- `crosshair.crosshair_kind` erfps2.toml key (renamed to `crosshair.kind`).
+
+### Fixed
+
+- Correctly disable crosshair in cutscenes.
+- Compatibility with RemoveVignette.dll.
+- Custom shader failing to enable in certain circumstances.
+
 ## [0.1.3] 2026-01-12
 
 ### Added
