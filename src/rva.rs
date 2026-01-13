@@ -20,4 +20,7 @@ pub const SET_WWISE_LISTENER_RVA: u32 = 0xda9400;
 pub const USES_DITHERING_RVA: u32 = 0x1a679e0;
 pub const CB_FISHEYE_HOOK_RVA: u32 = 0x1b91353;
 
+pub const GX_FFX_DRAW_PASS_RVA: u32 = 0x1d21250;
+pub const GX_FFX_DRAW_CONTEXT_RVA: u32 = 0x1d34fa5;
+
 pub const CAM_WALL_RECOVERY_RVA: u32 = 0x3b15c80;

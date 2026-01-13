@@ -14,7 +14,10 @@ use winhook::HookInstaller;
 use crate::{
     config::CrosshairKind,
     program::Program,
-    rva::{ADD_PIXEL_SHADER_RVA, CB_FISHEYE_HOOK_RVA, USES_DITHERING_RVA},
+    rva::{
+        ADD_PIXEL_SHADER_RVA, CB_FISHEYE_HOOK_RVA, GX_FFX_DRAW_CONTEXT_RVA, GX_FFX_DRAW_PASS_RVA,
+        USES_DITHERING_RVA,
+    },
 };
 
 static TONE_MAP_HOOK: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ToneMap_PostHook.ppo"));
@@ -61,7 +64,11 @@ pub fn hook_shaders(program: Program) -> eyre::Result<()> {
             .map(mem::forget)
             .unwrap();
 
-        hook_shader_cb(program)
+        hook_shader_cb(program)?;
+
+        patch_vfx_range(program)?;
+
+        Ok(())
     }
 }
 
@@ -152,6 +159,52 @@ unsafe fn hook_shader_cb(program: Program) -> eyre::Result<()> {
     }
 
     Ok(())
+}
+
+unsafe fn patch_vfx_range(program: Program) -> eyre::Result<()> {
+    unsafe {
+        let ffx_draw_pass = program
+            .derva_ptr::<unsafe extern "C" fn(*mut c_void, *mut c_void) -> bool>(
+                GX_FFX_DRAW_PASS_RVA,
+            );
+
+        HookInstaller::for_function(ffx_draw_pass)
+            .enable(true)
+            .install(|original| {
+                move |param_1, param_2| {
+                    if !ENABLE_VFX_FADE.load(Ordering::Relaxed) {
+                        return false;
+                    }
+
+                    original(param_1, param_2)
+                }
+            })
+            .map(mem::forget)
+            .unwrap();
+
+        // or eax,-1
+        // vcvtsi2ss xmm11,xmm11,eax
+        let ffx_draw_context_buf = [0x83, 0xC8, 0xFF, 0xC5, 0x22, 0x2A, 0xD8];
+
+        let ffx_draw_context_mem = program.derva::<[u8; 7]>(GX_FFX_DRAW_CONTEXT_RVA);
+
+        VirtualProtect(
+            ffx_draw_context_mem as *const c_void,
+            ffx_draw_context_buf.len(),
+            PAGE_EXECUTE_READWRITE,
+            &mut PAGE_PROTECTION_FLAGS::default(),
+        )?;
+
+        ffx_draw_context_mem.write(ffx_draw_context_buf);
+    }
+
+    Ok(())
+}
+
+static ENABLE_VFX_FADE: AtomicBool = AtomicBool::new(true);
+
+pub fn enable_vfx_fade(state: bool) {
+    ENABLE_VFX_FADE.store(state, Ordering::Relaxed);
 }
 
 static ENABLE_DITHERING: AtomicBool = AtomicBool::new(true);

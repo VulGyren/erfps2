@@ -17,7 +17,7 @@ use crate::{
     player::PlayerExt,
     program::Program,
     rva::CAM_WALL_RECOVERY_RVA,
-    shaders::{enable_dithering, enable_fov_correction, set_crosshair},
+    shaders::{enable_dithering, enable_fov_correction, enable_vfx_fade, set_crosshair},
 };
 
 pub struct CameraControl {
@@ -255,6 +255,8 @@ impl CameraContext {
             let first_person = state.first_person();
 
             enable_dithering(!first_person);
+            enable_vfx_fade(!first_person);
+
             state.set_crosshair_if(first_person);
 
             self.player.enable_face_model(!first_person);
