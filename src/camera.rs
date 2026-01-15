@@ -1,10 +1,13 @@
-use std::{ffi::c_void, mem, ptr};
+use std::{
+    ffi::{CStr, c_char, c_void},
+    mem, ptr,
+};
 
 use eldenring::{
-    cs::{CSCam, CSChrBehaviorDataModule, ChrExFollowCam, PlayerIns},
+    cs::{CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, ChrExFollowCam, ChrIns, PlayerIns},
     fd4::FD4Time,
 };
-use fromsoftware_shared::F32ViewMatrix;
+use fromsoftware_shared::{F32Vector4, F32ViewMatrix};
 use winhook::HookInstaller;
 
 use crate::{
@@ -13,9 +16,9 @@ use crate::{
     player::PlayerExt,
     program::Program,
     rva::{
-        CAMERA_STEP_UPDATE_RVA, FOLLOW_CAM_FOLLOW_RVA, MMS_UPDATE_CHR_CAM_RVA,
-        POSTURE_CONTROL_RIGHT_RVA, PUSH_TAE700_MODIFIER_RVA, SET_WWISE_LISTENER_RVA,
-        UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
+        CAMERA_STEP_UPDATE_RVA, CHR_ROOT_MOTION_RVA, FOLLOW_CAM_FOLLOW_RVA, GET_BEH_GRAPH_DATA_RVA,
+        MMS_UPDATE_CHR_CAM_RVA, POSTURE_CONTROL_RIGHT_RVA, PUSH_TAE700_MODIFIER_RVA,
+        SET_WWISE_LISTENER_RVA, UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
     },
 };
 
@@ -149,8 +152,51 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
             .enable(true)
             .install(|original| {
                 move |param_1, param_2, param_3, param_4| {
-                    let posture_angle = hand_posture_control(**param_1).unwrap_or(0);
+                    let posture_angle = log_unwind!(hand_posture_control(**param_1).unwrap_or(0));
                     original(param_1, param_2, param_3, param_4) + posture_angle
+                }
+            })
+            .map(mem::forget)
+            .unwrap();
+
+        let chr_root_motion = program.derva_ptr::<unsafe extern "C" fn(
+            *mut CSChrPhysicsModule,
+            *mut F32Vector4,
+            *mut F32Vector4,
+            *mut c_void,
+        )>(CHR_ROOT_MOTION_RVA);
+
+        HookInstaller::for_function(chr_root_motion)
+            .enable(true)
+            .install(|original| {
+                move |param_1, param_2, param_3, param_4| {
+                    let mut param_3 = *param_3;
+
+                    if let Some(root_motion) =
+                        log_unwind!(root_motion_modifier((*param_1).owner.as_ptr(), param_3))
+                    {
+                        param_3 = root_motion;
+                    }
+
+                    original(param_1, param_2, &mut param_3, param_4);
+                }
+            })
+            .map(mem::forget)
+            .unwrap();
+
+        let get_beh_graph =
+            program
+                .derva_ptr::<unsafe extern "C" fn(*mut c_void, *mut c_void, u32) -> *mut c_void>(
+                    GET_BEH_GRAPH_DATA_RVA,
+                );
+
+        HookInstaller::for_function(get_beh_graph)
+            .enable(true)
+            .install(|original| {
+                move |param_1, param_2, param_3| {
+                    let result = original(param_1, param_2, param_3);
+                    log_unwind!(update_player_behavior_state(result, param_2));
+                    result
                 }
             })
             .map(mem::forget)
@@ -250,14 +296,67 @@ unsafe fn tae700_override(args: &mut [f32; 8]) {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn hand_posture_control(some_player: *const PlayerIns) -> Option<i32> {
-    let first_person = CameraControl::scope(|control| control.first_person());
+    let first_person = || CameraControl::scope(|control| control.first_person());
 
     let main_player = PlayerIns::main_player()?;
     let is_main_player = ptr::eq(some_player, main_player);
 
-    if !first_person || !is_main_player || main_player.is_2h() {
+    if !is_main_player || main_player.is_2h() || !first_person() {
         return None;
     }
 
     Some(15)
+}
+
+#[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
+unsafe fn root_motion_modifier(
+    some_chr: *const ChrIns,
+    root_motion: F32Vector4,
+) -> Option<F32Vector4> {
+    let main_player = PlayerIns::main_player()?;
+    let is_main_player = ptr::addr_eq(some_chr, main_player);
+
+    if !is_main_player
+        || !CameraControl::scope(|control| {
+            let context = control.first_person().then(|| control.state_and_context());
+            matches!(context, Some((_, Some(context))) if context.has_state("Attack_SM"))
+        })
+    {
+        return None;
+    }
+
+    Some(F32Vector4(
+        root_motion.0 * 4.0,
+        root_motion.1 * 4.0,
+        root_motion.2 * 4.0,
+        root_motion.3,
+    ))
+}
+
+#[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
+unsafe fn update_player_behavior_state(state_machine: *mut c_void, behavior_graph: *mut c_void) {
+    if !state_machine.is_null()
+        && let Some(player) = PlayerIns::main_player()
+        && ptr::addr_eq(
+            behavior_graph,
+            player
+                .module_container
+                .behavior
+                .hkb_context
+                .hkb_character
+                .behavior_graph,
+        )
+    {
+        let name = unsafe { *state_machine.byte_add(0x48).cast::<*const c_char>() };
+
+        if !name.is_null()
+            && let Ok(name) = unsafe { CStr::from_ptr(name).to_str() }
+        {
+            CameraControl::scope(|control| {
+                if let (_, Some(context)) = control.state_and_context() {
+                    context.behavior_states.push(name.into());
+                }
+            });
+        }
+    }
 }

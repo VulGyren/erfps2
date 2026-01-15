@@ -67,6 +67,7 @@ pub struct CameraContext {
     pub chr_cam: &'static mut ChrCam,
     pub lock_tgt: &'static mut LockTgtMan,
     pub player: &'static mut PlayerIns,
+    pub behavior_states: Vec<Box<str>>,
     frame: u64,
     stabilizer: CameraStabilizer,
 }
@@ -128,6 +129,7 @@ impl CameraControl {
     pub fn next_frame(&mut self) {
         if let Some(context) = &mut self.context {
             context.frame += 1;
+            context.behavior_states.clear();
         }
     }
 }
@@ -197,11 +199,11 @@ impl CameraState {
         let lock_tgt = unsafe { LockTgtMan::instance().ok()? };
         let player = world_chr_man.main_player.as_deref_mut()?;
 
-        let (frame, stabilizer) = context
-            .map(|context| (context.frame, context.stabilizer))
+        let (behavior_states, frame, stabilizer) = context
+            .map(|context| (context.behavior_states, context.frame, context.stabilizer))
             .unwrap_or_else(|| {
                 let samples = self.stabilizer_window / self.tpf;
-                (0, CameraStabilizer::new(samples.ceil() as u32))
+                (vec![], 0, CameraStabilizer::new(samples.ceil() as u32))
             });
 
         Some(CameraContext {
@@ -209,6 +211,7 @@ impl CameraState {
             chr_cam,
             lock_tgt,
             player,
+            behavior_states,
             frame,
             stabilizer,
         })
@@ -366,6 +369,12 @@ impl CameraContext {
 
         self.cs_cam.pers_cam_1.fov = fov;
         self.chr_cam.pers_cam.fov = fov;
+    }
+
+    pub fn has_state(&self, name: &str) -> bool {
+        self.behavior_states
+            .iter()
+            .any(|state| &**state == name)
     }
 }
 

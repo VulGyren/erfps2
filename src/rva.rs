@@ -8,6 +8,7 @@ pub const POSTURE_CONTROL_RIGHT_RVA: u32 = 0x40fef0;
 
 pub const PUSH_TAE700_MODIFIER_RVA: u32 = 0x416d40;
 
+pub const CHR_ROOT_MOTION_RVA: u32 = 0x466e20;
 pub const IS_CHR_RIDING_RVA: u32 = 0x474900;
 
 pub const UPDATE_LOCK_TGT_RVA: u32 = 0x716360;
@@ -16,6 +17,8 @@ pub const MMS_UPDATE_CHR_CAM_RVA: u32 = 0xb02480;
 pub const ADD_PIXEL_SHADER_RVA: u32 = 0xb7a990;
 
 pub const SET_WWISE_LISTENER_RVA: u32 = 0xda9400;
+
+pub const GET_BEH_GRAPH_DATA_RVA: u32 = 0x1446b10;
 
 pub const USES_DITHERING_RVA: u32 = 0x1a679e0;
 pub const CB_FISHEYE_HOOK_RVA: u32 = 0x1b91353;
