@@ -484,6 +484,7 @@ impl From<&Config> for CameraState {
 
         state.correction_strength = config.fov.fov_correction_strength;
 
+        state.should_transition = config.gameplay.start_in_first_person;
         state.unlocked_movement = config.gameplay.unlocked_movement;
         state.prioritize_lock_on = config.gameplay.prioritize_lock_on;
 

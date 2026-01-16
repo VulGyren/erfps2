@@ -18,6 +18,9 @@ fov_correction = "fisheye"
 fov_correction_strength = 0.55
 
 [gameplay]
+# When starting up the game and loading a character the camera will start out in first person.
+start_in_first_person = true
+
 # Some animations (like attacks) allow for freer directional movement in first person.
 unlocked_movement = true
 
