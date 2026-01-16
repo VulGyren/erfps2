@@ -20,6 +20,7 @@ pub struct Fov {
 #[derive(Debug, Deserialize)]
 pub struct Gameplay {
     pub unlocked_movement: bool,
+    pub prioritize_lock_on: bool,
 }
 
 #[derive(Debug, Deserialize)]

@@ -40,6 +40,8 @@ pub struct CameraState {
 
     pub unlocked_movement: bool,
 
+    pub prioritize_lock_on: bool,
+
     pub use_stabilizer: bool,
 
     pub stabilizer_window: f32,
@@ -259,7 +261,7 @@ impl CameraContext {
         let should_transition = state.should_transition;
         state.should_transition = false;
 
-        if should_transition && !self.lock_tgt.is_locked_on {
+        if should_transition && (!state.prioritize_lock_on || !self.lock_tgt.is_locked_on) {
             state.first_person = !state.first_person;
 
             self.lock_tgt.is_lock_on_requested = false;
@@ -276,11 +278,16 @@ impl CameraContext {
             self.player.enable_face_model(!first_person);
         }
 
-        if state.can_transition()
-            && !self.lock_tgt.is_locked_on
-            && self.lock_tgt.is_locked_on != self.lock_tgt.is_lock_on_requested
-        {
+        let is_lock_on_toggled = self.lock_tgt.is_locked_on != self.lock_tgt.is_lock_on_requested;
+        let should_not_lock_on = (!state.prioritize_lock_on && is_lock_on_toggled)
+            || (!self.lock_tgt.is_locked_on && is_lock_on_toggled);
+
+        if state.can_transition() && should_not_lock_on {
             state.should_transition = true;
+
+            if !state.prioritize_lock_on {
+                self.lock_tgt.is_lock_on_requested = false;
+            }
         }
     }
 
@@ -446,6 +453,7 @@ impl Default for CameraState {
             trans_time: 0.0,
             angle_limit: const { [f32::to_radians(-80.0), f32::to_radians(70.0)] },
             unlocked_movement: true,
+            prioritize_lock_on: true,
             stabilizer_window: 0.3,
             stabilizer_factor: 0.8,
             use_stabilizer: true,
@@ -477,6 +485,7 @@ impl From<&Config> for CameraState {
         state.correction_strength = config.fov.fov_correction_strength;
 
         state.unlocked_movement = config.gameplay.unlocked_movement;
+        state.prioritize_lock_on = config.gameplay.prioritize_lock_on;
 
         state.use_stabilizer = config.stabilizer.enabled;
         state.stabilizer_window = config.stabilizer.smoothing_window.clamp(0.1, 1.0);

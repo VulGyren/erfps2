@@ -21,6 +21,9 @@ fov_correction_strength = 0.55
 # Some animations (like attacks) allow for freer directional movement in first person.
 unlocked_movement = true
 
+# When an enemy is on screen lock on will be prioritized to switching perspectives.
+prioritize_lock_on = true
+
 [stabilizer]
 # Stabilization of camera movement in first person.
 enabled = true
