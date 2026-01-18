@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.9] 2026-01-18
+
+### Added
+
+- Optional (off by default) setting to improve visibility during rolls by turning the player's body transparent.
+- `gameplay.unobtrusive_dodges` erfps2.toml key.
+
+### Changed
+
+- Camera offset and behavior by [weltensturm](https://github.com/weltensturm) in #1.
+- Aiming a bow now uses the base game aim FOV and can be zoomed in.
+
+### Fixed
+
+- Correctly propagate current FOV to the distortion correction shader.
+
 ## [0.1.8] 2026-01-17
 
 ### Added
