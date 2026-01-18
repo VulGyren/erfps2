@@ -20,6 +20,8 @@ pub trait PlayerExt {
 
     fn set_lock_on_target_position(&mut self, pos: Vec4);
 
+    fn make_transparent(&mut self, state: bool);
+
     fn enable_face_model(&mut self, state: bool);
 
     fn has_action_request(&self) -> bool;
@@ -79,6 +81,20 @@ impl PlayerExt for PlayerIns {
 
     fn set_lock_on_target_position(&mut self, pos: Vec4) {
         self.lock_on_target_position = pos.with_w(1.0).into();
+    }
+
+    fn make_transparent(&mut self, state: bool) {
+        // Magic constant (about 0.4683).
+        // Prevents overwriting values other than our bit pattern.
+        const MAGIC: f32 = -f32::from_bits(0xbeefbeef);
+
+        if state && self.base_transparency == 1.0 {
+            self.base_transparency = MAGIC;
+        }
+
+        if !state && self.base_transparency == MAGIC {
+            self.base_transparency = 1.0;
+        }
     }
 
     fn enable_face_model(&mut self, state: bool) {

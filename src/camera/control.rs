@@ -44,6 +44,8 @@ pub struct CameraState {
 
     pub use_stabilizer: bool,
 
+    pub unobtrusive_dodges: bool,
+
     pub track_dodges: bool,
 
     pub stabilizer_window: f32,
@@ -299,6 +301,10 @@ impl CameraContext {
             state.set_crosshair_if(first_person);
 
             self.player.enable_face_model(!first_person);
+
+            if !first_person {
+                self.player.make_transparent(false);
+            }
         }
 
         let is_lock_on_toggled = self.lock_tgt.is_locked_on != self.lock_tgt.is_lock_on_requested;
@@ -398,6 +404,11 @@ impl CameraContext {
         }
 
         self.player.enable_face_model(false);
+
+        if state.unobtrusive_dodges {
+            self.player
+                .make_transparent(self.has_state(BehaviorState::Evasion));
+        }
 
         let camera_pos = self.camera_position(state);
 
@@ -592,6 +603,7 @@ impl Default for CameraState {
             stabilizer_factor: 0.8,
             use_stabilizer: true,
             track_dodges: false,
+            unobtrusive_dodges: true,
             crosshair: CrosshairKind::Cross,
             crosshair_scale: (1.0, 1.0),
             use_fov_correction: true,
@@ -622,6 +634,7 @@ impl From<&Config> for CameraState {
         state.should_transition = config.gameplay.start_in_first_person;
         state.unlocked_movement = config.gameplay.unlocked_movement;
         state.prioritize_lock_on = config.gameplay.prioritize_lock_on;
+        state.unobtrusive_dodges = config.gameplay.unobtrusive_dodges;
         state.track_dodges = config.gameplay.track_dodges;
 
         state.use_stabilizer = config.stabilizer.enabled;

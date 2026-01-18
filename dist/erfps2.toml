@@ -27,6 +27,9 @@ unlocked_movement = true
 # When an enemy is on screen lock on will be prioritized to switching perspectives.
 prioritize_lock_on = true
 
+# The player's body is made transparent during dodges, improving visibility.
+unobtrusive_dodges = false
+
 # Camera movement will be synchronized with head movement for dodges.
 track_dodges = false
 
