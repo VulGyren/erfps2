@@ -373,10 +373,7 @@ impl CameraContext {
 
         *self.player.aim_mtx_mut() = self.cs_cam.pers_cam_1.matrix;
 
-        let mut fov = state.fov;
-        if self.player.chr_flags1c5.precision_shooting() {
-            fov *= 0.6;
-        }
+        let fov = self.fov(state);
 
         self.cs_cam.pers_cam_1.fov = fov;
         self.chr_cam.pers_cam.fov = fov;
@@ -402,13 +399,27 @@ impl CameraContext {
         self.cs_cam.pers_cam_1.matrix = camera_pos;
         self.chr_cam.pers_cam.matrix = camera_pos;
 
-        let mut fov = state.fov;
-        if self.player.chr_flags1c5.precision_shooting() {
-            fov *= 0.6;
-        }
+        let fov = self.fov(state);
 
         self.cs_cam.pers_cam_1.fov = fov;
         self.chr_cam.pers_cam.fov = fov;
+    }
+
+    pub fn fov(&self, state: &CameraState) -> f32 {
+        if !self.player.chr_flags1c5.precision_shooting() {
+            return state.fov;
+        }
+
+        let aim_cam_fov = self.chr_cam.aim_cam.fov;
+        if aim_cam_fov <= state.fov {
+            return aim_cam_fov;
+        }
+
+        // f32::to_radians(25.0).atan()
+        const AIM_CAM_HALF_WIDTH: f32 = 0.41143;
+        let width_ratio = aim_cam_fov.atan() / AIM_CAM_HALF_WIDTH;
+
+        f32::tan(state.fov.atan() * width_ratio)
     }
 
     pub fn push_state(&mut self, state: &str) {
