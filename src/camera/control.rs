@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    f32::consts::PI,
     mem,
     ops::{Deref, DerefMut},
     sync::{LazyLock, RwLock},
@@ -9,7 +10,7 @@ use eldenring::cs::{
     CSActionButtonMan, CSCamera, CSRemo, ChrCam, ChrExFollowCam, PlayerIns, WorldChrMan,
 };
 use fromsoftware_shared::{F32ViewMatrix, FromStatic};
-use glam::{Mat3A, Mat4, Quat, Vec3, Vec4};
+use glam::{EulerRot, Mat3A, Mat4, Quat, Vec3, Vec4};
 
 use crate::{
     config::{Config, CrosshairKind, FovCorrection, updater::ConfigUpdater},
@@ -63,10 +64,6 @@ pub struct CameraState {
     pub correction_strength: f32,
 
     pub saved_angle_limit: Option<f32>,
-
-    pub in_head_offset_y: f32,
-
-    pub in_head_offset_z: f32,
 }
 
 pub struct CameraContext {
@@ -323,45 +320,51 @@ impl CameraContext {
     pub fn camera_position(&mut self, state: &CameraState) -> F32ViewMatrix {
         let frame = self.frame;
 
-        let mut head_pos = self.player.head_position();
-        let mut new_head_pos = Vec4::from(head_pos.3).truncate();
+        let head_mtx = self.player.head_position();
+
+        let head_rotation = head_mtx.rotation();
+        let camera_rotation = Quat::from_mat3a(&self.chr_cam.pers_cam.matrix.rotation());
+
+        let mut head_pos = head_mtx.translation();
 
         if state.use_stabilizer {
-            let player_pos = Mat4::from(self.player.chr_ctrl.model_matrix);
-            let abs_head_pos = player_pos
-                .inverse()
-                .transform_point3(head_pos.translation());
+            let player_mtx = Mat4::from(self.player.chr_ctrl.model_matrix);
+            let local_head_pos = player_mtx.inverse().transform_point3(head_pos);
 
-            let stabilized = self.stabilizer.next(frame, abs_head_pos);
-            let delta = stabilized - abs_head_pos;
+            let stabilized = self.stabilizer.next(frame, local_head_pos);
+            let delta = stabilized - local_head_pos;
 
-            new_head_pos = player_pos.transform_point3(
-                abs_head_pos + delta.clamp_length_max(state.stabilizer_factor * 0.1),
+            head_pos = player_mtx.transform_point3(
+                local_head_pos + delta.clamp_length_max(state.stabilizer_factor * 0.1),
             );
         }
 
-        new_head_pos += Vec4::from(head_pos.1).truncate() * -0.1;
-        head_pos.3 = new_head_pos.extend(1.0).into();
-
-        let tracking_rotation = if (state.track_dodges && (self.has_state(BehaviorState::Evasion)))
-            || self.player.is_in_throw()
+        let tracking_rotation = if self.player.is_in_throw()
+            || (state.track_dodges && self.has_state(BehaviorState::Evasion))
         {
-            self.head_tracker.next_tracked(frame, head_pos.rotation())
+            self.head_tracker.next_tracked(frame, head_rotation)
         } else {
-            self.head_tracker.next_untracked(frame, head_pos.rotation())
+            self.head_tracker.next_untracked(frame, head_rotation)
         };
 
-        let mut camera_pos = Mat4::from_rotation_translation(
-            Quat::from_mat3a(&self.chr_cam.pers_cam.matrix.rotation()) * tracking_rotation,
-            head_pos.translation(),
-        );
+        let camera_rotation = camera_rotation * tracking_rotation;
 
-        let y_offset = camera_pos.row(1).with_w(0.0) * state.in_head_offset_y;
-        let z_offset = camera_pos.row(2).with_w(0.0) * state.in_head_offset_z;
+        let cam_pitch = camera_rotation.to_euler(EulerRot::ZXY).1;
+        let cam_pitch_exp = (cam_pitch.abs() / 3.0).powi(2);
 
-        camera_pos.w_axis += y_offset + z_offset;
+        let head_pitch = head_rotation.to_euler(EulerRot::ZXY).1;
+        let head_upright = (1.0 - head_pitch.abs() / PI / 2.0).max(0.0).sqrt();
 
-        camera_pos.into()
+        let world_contrib = Vec3::new(0.0, 0.1, 0.0);
+        let head_contrib = Vec3::new(0.0, -0.1 * head_upright, -0.05);
+        let cam_contrib =
+            Vec3::new(0.0, 0.03 + cam_pitch_exp, -0.025 + cam_pitch.abs() / 12.0) * head_upright;
+
+        head_pos += world_contrib
+            + head_rotation.transpose() * head_contrib
+            + camera_rotation.inverse() * cam_contrib;
+
+        Mat4::from_rotation_translation(camera_rotation, head_pos).into()
     }
 
     pub fn update_cs_cam(&mut self, state: &mut CameraState) {
@@ -610,8 +613,6 @@ impl Default for CameraState {
             use_barrel_correction: false,
             correction_strength: 0.5,
             saved_angle_limit: None,
-            in_head_offset_y: 0.075,
-            in_head_offset_z: -0.025,
         }
     }
 }
