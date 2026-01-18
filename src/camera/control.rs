@@ -603,7 +603,7 @@ impl Default for CameraState {
             stabilizer_factor: 0.8,
             use_stabilizer: true,
             track_dodges: false,
-            unobtrusive_dodges: true,
+            unobtrusive_dodges: false,
             crosshair: CrosshairKind::Cross,
             crosshair_scale: (1.0, 1.0),
             use_fov_correction: true,
