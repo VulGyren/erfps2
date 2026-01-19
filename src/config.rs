@@ -24,6 +24,7 @@ pub struct Gameplay {
     pub prioritize_lock_on: bool,
     pub unobtrusive_dodges: bool,
     pub track_dodges: bool,
+    pub restricted_sprint: bool,
 }
 
 #[derive(Debug, Deserialize)]

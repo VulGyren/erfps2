@@ -33,6 +33,9 @@ unobtrusive_dodges = false
 # Camera movement will be synchronized with head movement for dodges.
 track_dodges = false
 
+# Initial sprinting direction is restricted to moving forward.
+restricted_sprint = false
+
 [stabilizer]
 # Stabilization of camera movement in first person.
 enabled = true

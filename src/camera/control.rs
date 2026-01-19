@@ -49,6 +49,8 @@ pub struct CameraState {
 
     pub track_dodges: bool,
 
+    pub unrestricted_sprint: bool,
+
     pub stabilizer_window: f32,
 
     pub stabilizer_factor: f32,
@@ -607,8 +609,9 @@ impl Default for CameraState {
             stabilizer_window: 0.3,
             stabilizer_factor: 0.8,
             use_stabilizer: true,
-            track_dodges: false,
             unobtrusive_dodges: false,
+            track_dodges: false,
+            unrestricted_sprint: true,
             crosshair: CrosshairKind::Cross,
             crosshair_scale: (1.0, 1.0),
             use_fov_correction: true,
@@ -639,6 +642,7 @@ impl From<&Config> for CameraState {
         state.prioritize_lock_on = config.gameplay.prioritize_lock_on;
         state.unobtrusive_dodges = config.gameplay.unobtrusive_dodges;
         state.track_dodges = config.gameplay.track_dodges;
+        state.unrestricted_sprint = !config.gameplay.restricted_sprint;
 
         state.use_stabilizer = config.stabilizer.enabled;
         state.stabilizer_window = config.stabilizer.smoothing_window.clamp(0.1, 1.0);

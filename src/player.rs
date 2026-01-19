@@ -30,6 +30,8 @@ pub trait PlayerExt {
 
     fn is_sprinting(&self) -> bool;
 
+    fn is_sprint_requested(&self) -> bool;
+
     fn is_riding(&self) -> bool;
 
     fn is_approaching_ladder(&self) -> bool;
@@ -153,7 +155,10 @@ impl PlayerExt for PlayerIns {
     }
 
     fn is_sprinting(&self) -> bool {
-        // FIXME: not sure this is reliable?
+        self.module_container.behavior.sprint_state == 2
+    }
+
+    fn is_sprint_requested(&self) -> bool {
         self.module_container.action_request.action_timers.roll > 0.3
     }
 
