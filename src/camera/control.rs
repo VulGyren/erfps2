@@ -635,7 +635,7 @@ impl Default for CameraState {
             use_stabilizer: true,
             unobtrusive_dodges: false,
             track_dodges: false,
-            restricted_sprint: true,
+            restricted_sprint: false,
             crosshair: CrosshairKind::Cross,
             crosshair_scale: (1.0, 1.0),
             use_fov_correction: true,
