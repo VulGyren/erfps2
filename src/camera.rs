@@ -8,7 +8,7 @@ use eldenring::{
     fd4::FD4Time,
 };
 use fromsoftware_shared::{F32Vector4, F32ViewMatrix};
-use glam::{Vec4, Vec4Swizzles};
+use glam::{Vec3Swizzles, Vec4};
 
 use crate::{
     camera::control::{BehaviorState, CameraControl},
@@ -294,7 +294,7 @@ unsafe fn root_motion_modifier(
         return None;
     }
 
-    let movement_dir = -Vec4::from(main_player.chr_ctrl.input_move_dir).zx();
+    let movement_dir = main_player.input_move_dir();
     let movement_magnitude = movement_dir.length();
 
     if movement_magnitude < 0.01 {
@@ -302,7 +302,7 @@ unsafe fn root_motion_modifier(
     }
 
     let scaled_root_motion = Vec4::from(root_motion).truncate() * movement_magnitude * 1.25;
-    let directional_root_motion = scaled_root_motion.rotate_y(movement_dir.to_angle());
+    let directional_root_motion = scaled_root_motion.rotate_y(movement_dir.xz().to_angle());
 
     Some(directional_root_motion.extend(1.0).into())
 }

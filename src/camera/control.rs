@@ -49,7 +49,7 @@ pub struct CameraState {
 
     pub track_dodges: bool,
 
-    pub unrestricted_sprint: bool,
+    pub restricted_sprint: bool,
 
     pub stabilizer_window: f32,
 
@@ -419,6 +419,10 @@ impl CameraContext {
 
         let camera_pos = self.camera_position(state);
 
+        if state.restricted_sprint {
+            self.restrict_sprint(camera_pos.rotation());
+        }
+
         self.cs_cam.pers_cam_1.matrix = camera_pos;
         self.chr_cam.pers_cam.matrix = camera_pos;
 
@@ -446,10 +450,22 @@ impl CameraContext {
     }
 
     pub fn is_player_sprinting(&self, state: &CameraState) -> bool {
-        if state.unrestricted_sprint {
-            self.player.is_sprint_requested()
-        } else {
+        if state.restricted_sprint {
             self.player.is_sprinting()
+        } else {
+            self.player.is_sprint_requested()
+        }
+    }
+
+    pub fn restrict_sprint(&mut self, camera_rotation: Mat3A) {
+        let movement_dir = camera_rotation * self.player.input_move_dir();
+        let movement_dir_xz = Vec3::new(-movement_dir.x, 0.0, movement_dir.z).normalize_or_zero();
+
+        let player_dir = Vec4::from(self.player.chr_ctrl.model_matrix.0).truncate();
+        let angle_from_movement = movement_dir_xz.dot(player_dir);
+
+        if angle_from_movement < 0.5 {
+            self.player.cancel_sprint();
         }
     }
 
@@ -619,7 +635,7 @@ impl Default for CameraState {
             use_stabilizer: true,
             unobtrusive_dodges: false,
             track_dodges: false,
-            unrestricted_sprint: true,
+            restricted_sprint: true,
             crosshair: CrosshairKind::Cross,
             crosshair_scale: (1.0, 1.0),
             use_fov_correction: true,
@@ -650,7 +666,7 @@ impl From<&Config> for CameraState {
         state.prioritize_lock_on = config.gameplay.prioritize_lock_on;
         state.unobtrusive_dodges = config.gameplay.unobtrusive_dodges;
         state.track_dodges = config.gameplay.track_dodges;
-        state.unrestricted_sprint = !config.gameplay.restricted_sprint;
+        state.restricted_sprint = config.gameplay.restricted_sprint;
 
         state.use_stabilizer = config.stabilizer.enabled;
         state.stabilizer_window = config.stabilizer.smoothing_window.clamp(0.1, 1.0);

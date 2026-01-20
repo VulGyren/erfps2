@@ -1,6 +1,8 @@
-use eldenring::cs::{CSModelIns, ChrAsmArmStyle, ChrIns, PlayerIns, ThrowNodeState, WorldChrMan};
+use eldenring::cs::{
+    CSModelIns, ChrAsmArmStyle, ChrIns, ChrMovementLimit, PlayerIns, ThrowNodeState, WorldChrMan,
+};
 use fromsoftware_shared::{F32ModelMatrix, F32Vector4, F32ViewMatrix, FromStatic, OwnedPtr};
-use glam::Vec4;
+use glam::{Vec3, Vec4, Vec4Swizzles};
 
 use crate::{
     program::Program,
@@ -14,6 +16,8 @@ pub trait PlayerExt {
 
     fn head_position(&self) -> F32ModelMatrix;
 
+    fn input_move_dir(&self) -> Vec3;
+
     fn aim_mtx_mut(&mut self) -> &mut F32ViewMatrix;
 
     fn set_lock_on(&mut self, state: bool);
@@ -25,6 +29,8 @@ pub trait PlayerExt {
     fn enable_face_model(&mut self, state: bool);
 
     fn enable_sheathed_weapons(&mut self, state: bool);
+
+    fn cancel_sprint(&mut self);
 
     fn has_action_request(&self) -> bool;
 
@@ -76,6 +82,10 @@ impl PlayerExt for PlayerIns {
 
     fn aim_mtx_mut(&mut self) -> &mut F32ViewMatrix {
         &mut self.aim_view_mtx
+    }
+
+    fn input_move_dir(&self) -> Vec3 {
+        -Vec4::from(self.chr_ctrl.input_move_dir).zyx()
     }
 
     fn set_lock_on(&mut self, state: bool) {
@@ -144,6 +154,12 @@ impl PlayerExt for PlayerIns {
 
         enable_parts_visibilty(lh_weapon, lh_weapon_visibility);
         enable_parts_visibilty(rh_weapon, rh_weapon_visibility);
+    }
+
+    fn cancel_sprint(&mut self) {
+        if self.chr_ctrl.modifier.data.movement_limit == ChrMovementLimit::NoLimit {
+            self.chr_ctrl.modifier.data.movement_limit = ChrMovementLimit::LimitToDash;
+        }
     }
 
     fn has_action_request(&self) -> bool {
