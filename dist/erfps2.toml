@@ -10,7 +10,7 @@ horizontal_fov = 85.0
 # Correction of distortion caused by high FOV.
 # These options reduce FOV distortion and may improve depth perception in first person.
 # Possible values: "none", "fisheye", "barrel"
-fov_correction = "fisheye"
+fov_correction = "barrel"
 
 # The strength of FOV correction.
 # Larger values may introduce visible radial curvature and a reduction in image quality.
