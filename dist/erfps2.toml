@@ -56,7 +56,7 @@ smoothing_factor = 0.8
 
 [crosshair]
 # Crosshair in first person.
-# Possible values: "none", "cross", "dot", "circle", "circledot"
+# Possible values: "none", "cross", "dot", "circle", "circledot", "angled"
 kind = "cross"
 
 # The horizontal scale of the crosshair reticle.

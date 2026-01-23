@@ -58,6 +58,7 @@ pub enum CrosshairKind {
     Dot,
     Circle,
     CircleDot,
+    Angled,
 }
 
 #[cfg(test)]

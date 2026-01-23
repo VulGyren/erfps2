@@ -125,6 +125,11 @@ bool CrosshairTest(float2 uv)
             float r = length(cScreen);
             return (r > 0.0066 && r < 0.0080) || r < 0.0012;
         }
+        case 5: {
+            cScreen = abs(cScreen);
+            float s = cScreen.x + cScreen.y * 3.0;
+            return cScreen.x > 0.007 && s > 0.015 && s < 0.02;
+        }
         default:
             return false;
     }
