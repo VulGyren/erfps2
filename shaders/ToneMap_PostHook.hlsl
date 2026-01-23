@@ -97,7 +97,7 @@ float2 MapUvBarrel(float2 uv)
     float3 vUV = float3(0.5, 0.5, 1.0) * z + float3(-0.5, -0.5, 0.0);
     vUV.xy += uv;
 
-    float3 uvp = vUV - dot(vUVDot, vUVDot) * float3(-0.5, -0.5, -1.0);
+    float3 uvp = vUV - dot(vUVDot, vUVDot) * float3(0.5, 0.5, 1.0);
     return uvp.xy / uvp.z;
 }
 
