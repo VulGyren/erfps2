@@ -39,10 +39,6 @@ pattern = "48 8b 46 08 48 8b d7 48 8b 88 48 04 00 00 e8 $ { ' }"
 captures = ["", "GX_FFX_DRAW_PASS_RVA"]
 
 [[patterns]]
-pattern = "48 8b d9 48 8b fa 48 8b 49 58 e8 ? ? ? ? 48 8b 8b 90 01 00 00 48 8b 99 e8 00 00 00 48 8b cb e8 $ { ' }"
-captures = ["", "IS_CHR_RIDING_RVA"]
-
-[[patterns]]
 pattern = "48 8b cb e8 $ { ' } f3 0f 10 4f 08 48 8b cb e8 ? ? ? ? f3 0f 10 4f 08 48 8b cb e8 ? ? ? ? 48 8b cb e8"
 captures = ["", "MMS_UPDATE_CHR_CAM_RVA"]
 

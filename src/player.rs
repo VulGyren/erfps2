@@ -9,10 +9,7 @@ use fromsoftware_shared::{F32ModelMatrix, F32Vector4, F32ViewMatrix, FromStatic,
 use glam::{Vec3, Vec4, Vec4Swizzles};
 use pmod::param::ParamRepository;
 
-use crate::{
-    program::Program,
-    rva::{GET_DMY_POS_RVA, IS_CHR_RIDING_RVA},
-};
+use crate::{program::Program, rva::GET_DMY_POS_RVA};
 
 pub trait PlayerExt {
     fn main_player<'a>() -> Option<&'a mut Self>;
@@ -210,11 +207,7 @@ impl PlayerExt for PlayerIns {
     }
 
     fn is_riding(&self) -> bool {
-        type IsChrRiding = unsafe extern "C" fn(*const ()) -> bool;
-        unsafe {
-            let is_chr_riding = Program::current().derva_ptr::<IsChrRiding>(IS_CHR_RIDING_RVA);
-            is_chr_riding(self.module_container.ride)
-        }
+        self.module_container.ride.is_mounted
     }
 
     fn is_approaching_ladder(&self) -> bool {

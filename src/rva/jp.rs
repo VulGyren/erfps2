@@ -8,7 +8,6 @@ pub const GET_BEH_GRAPH_DATA_RVA: u32 = 0x1446a50;
 pub const GET_DMY_POS_RVA: u32 = 0x3e94d0;
 pub const GX_FFX_DRAW_CONTEXT_RVA: u32 = 0x1d34ee5;
 pub const GX_FFX_DRAW_PASS_RVA: u32 = 0x1d21190;
-pub const IS_CHR_RIDING_RVA: u32 = 0x474800;
 pub const MMS_UPDATE_CHR_CAM_RVA: u32 = 0xb02390;
 pub const POSTURE_CONTROL_RIGHT_RVA: u32 = 0x40fdf0;
 pub const PUSH_TAE700_MODIFIER_RVA: u32 = 0x416c40;
