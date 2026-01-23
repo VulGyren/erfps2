@@ -23,6 +23,10 @@ pattern = "4d 8b c6 41 0f 28 cf 48 8b ce e8 $ { ' } 0f b6 86 10 03 00 00"
 captures = ["", "FOLLOW_CAM_FOLLOW_RVA"]
 
 [[patterns]]
+pattern = "48 8b 05 $ { ' } 48 85 c0 74 04 48 8b 58 08 48 85 db"
+captures = ["", "GAME_DATA_MAN_RVA"]
+
+[[patterns]]
 pattern = "8b 80 4c 01 00 00 44 8b c0 49 8b d5 48 8b cb e8 $ { ' }"
 captures = ["", "GET_BEH_GRAPH_DATA_RVA"]
 

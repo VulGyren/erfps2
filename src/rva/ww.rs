@@ -4,6 +4,7 @@ pub const CAM_WALL_RECOVERY_RVA: u32 = 0x3b15c80;
 pub const CB_FISHEYE_HOOK_RVA: u32 = 0x1b91353;
 pub const CHR_ROOT_MOTION_RVA: u32 = 0x466e20;
 pub const FOLLOW_CAM_FOLLOW_RVA: u32 = 0x3b6f30;
+pub const GAME_DATA_MAN_RVA: u32 = 0x3d5df38;
 pub const GET_BEH_GRAPH_DATA_RVA: u32 = 0x1446b10;
 pub const GET_DMY_POS_RVA: u32 = 0x3e95e0;
 pub const GX_FFX_DRAW_CONTEXT_RVA: u32 = 0x1d34fa5;

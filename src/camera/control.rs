@@ -7,13 +7,15 @@ use std::{
 };
 
 use eldenring::cs::{
-    CSActionButtonMan, CSCamera, CSRemo, ChrCam, ChrExFollowCam, PlayerIns, WorldChrMan,
+    CSActionButtonMan, CSCamera, CSRemo, ChrCam, ChrExFollowCam, GameDataMan, PlayerIns,
+    WorldChrMan,
 };
 use fromsoftware_shared::{F32ViewMatrix, FromStatic};
 use glam::{EulerRot, Mat3A, Mat4, Quat, Vec3, Vec4};
 
 use crate::{
     config::{Config, CrosshairKind, FovCorrection, updater::ConfigUpdater},
+    game::GameDataManExt,
     player::PlayerExt,
     program::Program,
     rva::CAM_WALL_RECOVERY_RVA,
@@ -268,7 +270,11 @@ impl CameraState {
     }
 
     fn set_crosshair_if(&self, cond: bool) {
-        let crosshair = if cond {
+        let is_hud_enabled = unsafe {
+            GameDataMan::instance().is_some_and(|game_data_man| game_data_man.is_hud_enabled())
+        };
+
+        let crosshair = if cond && is_hud_enabled {
             self.crosshair
         } else {
             CrosshairKind::None
