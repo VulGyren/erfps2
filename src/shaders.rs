@@ -74,7 +74,7 @@ pub fn enable_fov_correction(
     strength: f32,
     cylindricity: f32,
     use_barrel: bool,
-    vfov: f32,
+    horizontal_fov: f32,
 ) {
     let state = state && strength > 0.05;
 
@@ -84,7 +84,7 @@ pub fn enable_fov_correction(
     if state {
         let cylindricity = cylindricity.to_bits() as u64;
 
-        let strength_width_ratio = strength * f32::tan(vfov * 0.5);
+        let strength_width_ratio = strength * f32::tan(horizontal_fov * 0.5);
         let strength_width_ratio = strength_width_ratio.to_bits() as u64;
 
         SHADER_PARAMS.store(
