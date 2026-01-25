@@ -14,6 +14,7 @@ mod hook;
 mod logger;
 mod player;
 mod program;
+mod raycast;
 mod rva;
 mod shaders;
 

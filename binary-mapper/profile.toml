@@ -7,6 +7,10 @@ pattern = "48 8d 05 ? ? ? ? 48 89 05 ? ? ? ? 48 8d 05 ? ? ? ? 48 89 05 ? ? ? ? 4
 captures = ["", "CAMERA_STEP_UPDATE_RVA"]
 
 [[patterns]]
+pattern = "e8 $ { ' } 90 48 8d 45 50 48 89 44 24 20 4c 8d 8d f0 00 00 00 4c 8d 05 ? ? ? ? 48 8d 54 24 60 49 8b 4f 08 e8 $ { ' }"
+captures = ["", "CAM_HIT_COLLECTOR_RVA", "CAST_SHAPE_RVA"]
+
+[[patterns]]
 pattern = "0f b6 43 0d 88 05 $ { ' } 0f b6 43 10"
 captures = ["", "CAM_WALL_RECOVERY_RVA"]
 
@@ -45,6 +49,10 @@ captures = ["GX_FFX_DRAW_CONTEXT_RVA"]
 [[patterns]]
 pattern = "48 8b 46 08 48 8b d7 48 8b 88 48 04 00 00 e8 $ { ' }"
 captures = ["", "GX_FFX_DRAW_PASS_RVA"]
+
+[[patterns]]
+pattern = "e8 $ { ' } 48 8b d8 eb 02 33 db 0f b7 44 24 30 66 89 43 10"
+captures = ["", "HKNP_SPHERE_SHAPE_RVA"]
 
 [[patterns]]
 pattern = "48 8b cb e8 $ { ' } f3 0f 10 4f 08 48 8b cb e8 ? ? ? ? f3 0f 10 4f 08 48 8b cb e8 ? ? ? ? 48 8b cb e8"

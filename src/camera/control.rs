@@ -7,7 +7,8 @@ use std::{
 };
 
 use eldenring::cs::{
-    CSActionButtonMan, CSCamera, CSRemo, ChrCam, ChrExFollowCam, GameDataMan, LockTgtMan, PlayerIns, WorldChrMan
+    CSActionButtonMan, CSCamera, CSRemo, ChrCam, ChrExFollowCam, ChrIns, FieldInsHandle,
+    FieldInsType, GameDataMan, LockTgtMan, PlayerIns, WorldChrMan,
 };
 use fromsoftware_shared::{F32ViewMatrix, FromStatic};
 use glam::{EulerRot, Mat3A, Mat4, Quat, Vec3, Vec4};
@@ -17,6 +18,7 @@ use crate::{
     game::GameDataManExt,
     player::PlayerExt,
     program::Program,
+    raycast::cast_sphere,
     rva::CAM_WALL_RECOVERY_RVA,
     shaders::{enable_dithering, enable_fov_correction, enable_vfx_fade, set_crosshair},
 };
@@ -404,7 +406,7 @@ impl CameraContext {
 
         state.set_crosshair_if(
             first_person
-                && !self.lock_tgt.is_locked_on
+                && (!self.lock_tgt.is_locked_on || state.soft_lock_on)
                 && !self.player.chr_flags1c5.precision_shooting(),
         );
 
@@ -415,10 +417,6 @@ impl CameraContext {
         self.player.enable_face_model(false);
         self.player.enable_sheathed_weapons(false);
 
-        if state.soft_lock_on {
-            self.lock_tgt.lock_camera = false;
-        }
-
         if state.unobtrusive_dodges {
             self.player
                 .make_transparent(self.has_state(BehaviorState::Evasion));
@@ -428,6 +426,10 @@ impl CameraContext {
 
         if state.restricted_sprint {
             self.restrict_sprint(camera_pos.rotation());
+        }
+
+        if state.soft_lock_on {
+            self.soft_lock_on(camera_pos);
         }
 
         self.cs_cam.pers_cam_1.matrix = camera_pos;
@@ -476,12 +478,64 @@ impl CameraContext {
         }
     }
 
+    pub fn lock_on_to(&mut self, chr_handle: FieldInsHandle) {
+        let mut next_node = self.lock_tgt.nodes;
+        let mut target_node = None;
+
+        while let Some(node) = next_node.map(|mut ptr| unsafe { ptr.as_mut() }) {
+            next_node = node.next;
+            node.flags &= !32;
+
+            if unsafe { node.value.as_ref().chr_handle == chr_handle } {
+                target_node = Some(node);
+            }
+        }
+
+        if let Some(target_node) = target_node {
+            target_node.flags |= 32;
+
+            self.lock_tgt.is_locked_on = true;
+            self.lock_tgt.is_lock_on_requested = true;
+        }
+    }
+
     pub fn push_state(&mut self, state: BehaviorState) {
         self.behavior_states.push_state(state);
     }
 
     pub fn has_state(&self, state: BehaviorState) -> bool {
         self.behavior_states.has_state(state)
+    }
+
+    fn soft_lock_on(&mut self, camera_pos: F32ViewMatrix) {
+        self.lock_tgt.lock_camera = false;
+
+        if !self.lock_tgt.is_lock_on_requested {
+            return;
+        }
+
+        let origin = Vec4::from(camera_pos.3).truncate();
+        let direction = Vec4::from(camera_pos.2).truncate() * 20.0;
+
+        let hit = cast_sphere(origin, direction, 0.2, 0x2000058, |hit| {
+            hit.field_ins().is_none_or(|owner| {
+                if unsafe {
+                    owner.as_ref().handle.selector.field_ins_type() == Some(FieldInsType::Chr)
+                } {
+                    self.player.can_target(owner.as_ptr() as *const ChrIns)
+                } else {
+                    true
+                }
+            })
+        });
+
+        if let Some(hit) = hit
+            && let Some(field_ins) = hit.field_ins()
+            && let field_ins_handle = unsafe { field_ins.as_ref().handle }
+            && field_ins_handle.selector.field_ins_type() == Some(FieldInsType::Chr)
+        {
+            self.lock_on_to(field_ins_handle);
+        }
     }
 }
 

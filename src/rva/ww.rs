@@ -1,6 +1,8 @@
 pub const ADD_PIXEL_SHADER_RVA: u32 = 0xb7a990;
 pub const CAMERA_STEP_UPDATE_RVA: u32 = 0x3bc6f0;
+pub const CAM_HIT_COLLECTOR_RVA: u32 = 0xc58b70;
 pub const CAM_WALL_RECOVERY_RVA: u32 = 0x3b15c80;
+pub const CAST_SHAPE_RVA: u32 = 0x187da10;
 pub const CB_FISHEYE_HOOK_RVA: u32 = 0x1b91353;
 pub const CHR_CAN_TARGET_RVA: u32 = 0x51a8e1;
 pub const CHR_ROOT_MOTION_RVA: u32 = 0x466e20;
@@ -10,6 +12,7 @@ pub const GET_BEH_GRAPH_DATA_RVA: u32 = 0x1446b10;
 pub const GET_DMY_POS_RVA: u32 = 0x3e95e0;
 pub const GX_FFX_DRAW_CONTEXT_RVA: u32 = 0x1d34fa5;
 pub const GX_FFX_DRAW_PASS_RVA: u32 = 0x1d21250;
+pub const HKNP_SPHERE_SHAPE_RVA: u32 = 0x1883ce0;
 pub const MMS_UPDATE_CHR_CAM_RVA: u32 = 0xb02480;
 pub const POSTURE_CONTROL_RIGHT_RVA: u32 = 0x40fef0;
 pub const PUSH_TAE700_MODIFIER_RVA: u32 = 0x416d40;
