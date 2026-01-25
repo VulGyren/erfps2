@@ -2,6 +2,7 @@ pub const ADD_PIXEL_SHADER_RVA: u32 = 0xb7a990;
 pub const CAMERA_STEP_UPDATE_RVA: u32 = 0x3bc6f0;
 pub const CAM_WALL_RECOVERY_RVA: u32 = 0x3b15c80;
 pub const CB_FISHEYE_HOOK_RVA: u32 = 0x1b91353;
+pub const CHR_CAN_TARGET_RVA: u32 = 0x51a8e1;
 pub const CHR_ROOT_MOTION_RVA: u32 = 0x466e20;
 pub const FOLLOW_CAM_FOLLOW_RVA: u32 = 0x3b6f30;
 pub const GAME_DATA_MAN_RVA: u32 = 0x3d5df38;

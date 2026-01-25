@@ -9,7 +9,10 @@ use eldenring::{
 use fromsoftware_shared::{F32ModelMatrix, F32Vector4, F32ViewMatrix, FromStatic, OwnedPtr};
 use glam::{Vec3, Vec4, Vec4Swizzles};
 
-use crate::{program::Program, rva::GET_DMY_POS_RVA};
+use crate::{
+    program::Program,
+    rva::{CHR_CAN_TARGET_RVA, GET_DMY_POS_RVA},
+};
 
 pub trait PlayerExt {
     fn main_player<'a>() -> Option<&'a mut Self>;
@@ -33,6 +36,8 @@ pub trait PlayerExt {
     fn enable_sheathed_weapons(&mut self, state: bool);
 
     fn cancel_sprint(&mut self);
+
+    fn can_target(&self, chr: *const ChrIns) -> bool;
 
     fn has_action_request(&self) -> bool;
 
@@ -185,6 +190,17 @@ impl PlayerExt for PlayerIns {
     fn cancel_sprint(&mut self) {
         if self.chr_ctrl.modifier.data.movement_limit == ChrMovementLimit::NoLimit {
             self.chr_ctrl.modifier.data.movement_limit = ChrMovementLimit::LimitToDash;
+        }
+    }
+
+    fn can_target(&self, chr: *const ChrIns) -> bool {
+        unsafe {
+            let chr_can_target = Program::current()
+                .derva_ptr::<unsafe extern "C" fn(*const ChrIns, *const ChrIns) -> u32>(
+                    CHR_CAN_TARGET_RVA,
+                );
+
+            chr_can_target(&self.chr_ins, chr) != 0
         }
     }
 
