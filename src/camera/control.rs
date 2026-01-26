@@ -5,11 +5,12 @@ use std::{
     ops::{Deref, DerefMut},
     sync::{LazyLock, RwLock},
 };
-
+use std::arch::x86_64::_mm256_broadcastq_epi64;
 use eldenring::cs::{
     CSActionButtonMan, CSCamera, CSRemo, ChrCam, ChrExFollowCam, ChrIns, FieldInsHandle,
-    FieldInsType, GameDataMan, LockTgtMan, PlayerIns, WorldChrMan,
+    FieldInsType, GameDataMan, LockTgtMan, PlayerIns, WorldChrMan, ChrInsExt
 };
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState};
 use fromsoftware_shared::{F32ViewMatrix, FromStatic};
 use glam::{EulerRot, Mat3A, Mat4, Quat, Vec3, Vec4};
 
@@ -22,6 +23,8 @@ use crate::{
     rva::CAM_WALL_RECOVERY_RVA,
     shaders::{enable_dithering, enable_fov_correction, enable_vfx_fade, set_crosshair},
 };
+
+static mut FOV_TOGGLING:bool = false;
 
 pub struct CameraControl {
     state: CameraState,
@@ -42,11 +45,13 @@ pub struct CameraState {
 
     pub angle_limit: [f32; 2],
 
-    pub soft_lock_on: bool,
+    pub unlocked_movement: bool,
 
+    pub soft_lock_on: bool,
+    
     pub prioritize_lock_on: bool,
 
-    pub unlocked_movement: bool,
+    pub use_stabilizer: bool,
 
     pub unobtrusive_dodges: bool,
 
@@ -54,7 +59,7 @@ pub struct CameraState {
 
     pub restricted_sprint: bool,
 
-    pub use_stabilizer: bool,
+    pub controller_friendly: bool,
 
     pub stabilizer_window: f32,
 
@@ -281,9 +286,39 @@ impl CameraContext {
             return;
         };
 
-        match action_button_man.is_use_pressed {
-            true => state.trans_time += state.tpf,
-            false => state.trans_time = 0.0,
+        let Ok(world_chr_man) = (unsafe { WorldChrMan::instance() }) else {
+            return;
+        };
+
+        let Some(ref mut main_player) = world_chr_man.main_player else {
+            return;
+        };
+        if state.controller_friendly == false {
+        if unsafe { GetAsyncKeyState(0x2E) == 0 } { unsafe { FOV_TOGGLING = false } }
+
+        if unsafe { GetAsyncKeyState(0x2E) != 0 && FOV_TOGGLING == false } { state.trans_time = 0.3 } else if unsafe { GetAsyncKeyState(0xC0) != 0 } { state.trans_time += state.tpf } else if unsafe { GetAsyncKeyState(0x2E) == 0 && GetAsyncKeyState(0xC0) == 0 } { state.trans_time = 0.0 }
+        }
+        else if state.controller_friendly == true {
+            match action_button_man.is_use_pressed {
+                true => state.trans_time += state.tpf,
+                false => state.trans_time = 0.0,
+            }
+        }
+
+        if !self.player.has_effect(100625) && state.first_person() {
+            main_player.apply_speffect(100625, true)
+        }   else if self.player.has_effect(100625) && !state.first_person() {
+            main_player.chr_ins.remove_speffect(100625)
+        }
+        if self.player.is_locked_on {
+            main_player.apply_speffect(100626, true)
+        }   else if !self.player.is_locked_on {
+            main_player.chr_ins.remove_speffect(100626)
+        }
+        if self.has_state(BehaviorState::Evasion) {
+            main_player.apply_speffect(100627, true)
+        }   else if !self.has_state(BehaviorState::Evasion) {
+            main_player.chr_ins.remove_speffect(100627)
         }
 
         let should_transition = state.should_transition;
@@ -316,18 +351,21 @@ impl CameraContext {
         let should_not_lock_on = (!state.prioritize_lock_on && is_lock_on_toggled)
             || (!self.lock_tgt.is_locked_on && is_lock_on_toggled);
 
-        if state.can_transition()
-            && should_not_lock_on
-            && self.player.module_container.action_request.action_timers.r3 > 0.0
-        {
-            state.should_transition = true;
-
-            if !state.prioritize_lock_on {
-                self.lock_tgt.is_lock_on_requested = false;
-            }
-        }
+        if state.controller_friendly == false {
+        if state.can_transition() && unsafe{ FOV_TOGGLING == false}
+            && unsafe{GetAsyncKeyState(0x2E) != 0}
+        {state.should_transition = true; unsafe{ FOV_TOGGLING = true}}
     }
+        else if state.controller_friendly == true {
+            if state.can_transition() && should_not_lock_on && self.player.module_container.action_request.action_timers.r3 != 0.0
+            {state.should_transition = true; state.trans_time = 0.0;
 
+                if !state.prioritize_lock_on {
+                    self.lock_tgt.is_lock_on_requested = false;
+                }
+            }
+        }}
+    
     pub fn camera_position(&mut self, state: &CameraState) -> F32ViewMatrix {
         let frame = self.frame;
 
@@ -462,10 +500,15 @@ impl CameraContext {
     }
 
     pub fn is_player_sprinting(&self, state: &CameraState) -> bool {
-        if state.restricted_sprint {
-            self.player.is_sprinting()
-        } else {
+        if !state.controller_friendly {
             self.player.is_sprint_requested()
+        }
+        else {
+            if state.restricted_sprint {
+                self.player.is_sprinting()
+            } else {
+                self.player.is_sprint_requested()
+            }
         }
     }
 
@@ -476,8 +519,9 @@ impl CameraContext {
         let player_dir = Vec4::from(self.player.chr_ctrl.model_matrix.0).truncate();
         let angle_from_movement = movement_dir_xz.dot(player_dir);
 
-        if angle_from_movement < 0.5 {
+        if (!CameraState::default().controller_friendly && unsafe{GetAsyncKeyState(0x57) == 0}) || (CameraState::default().controller_friendly && angle_from_movement < 0.5) {
             self.player.cancel_sprint();
+            //if !self.has_state(BehaviorState::Evasion){self.player.chr_ctrl.is_unlocked = false;}
         }
     }
 
@@ -511,8 +555,9 @@ impl CameraContext {
     }
 
     fn soft_lock_on(&mut self, camera_pos: F32ViewMatrix) {
-        self.lock_tgt.lock_camera = false;
 
+            self.lock_tgt.lock_camera = false;
+        //self.lock_tgt.is_lock_on_requested = true;
         if !self.lock_tgt.is_lock_on_requested {
             return;
         }
@@ -690,21 +735,22 @@ impl Default for CameraState {
             fov: const { f32::to_radians(90.0) },
             tpf: const { 1.0 / 60.0 },
             trans_time: 0.0,
-            angle_limit: const { [f32::to_radians(-80.0), f32::to_radians(70.0)] },
-            soft_lock_on: false,
-            prioritize_lock_on: true,
+            angle_limit: const { [f32::to_radians(-84.0), f32::to_radians(84.0)] },
             unlocked_movement: true,
+            soft_lock_on: true,
+            prioritize_lock_on: false,
+            stabilizer_window: 0.3,
+            stabilizer_factor: 0.6,
+            use_stabilizer: true,
             unobtrusive_dodges: false,
             track_dodges: false,
-            restricted_sprint: false,
-            use_stabilizer: true,
-            stabilizer_window: 0.3,
-            stabilizer_factor: 0.8,
-            crosshair: CrosshairKind::Cross,
+            restricted_sprint: true,
+            controller_friendly: false,
+            crosshair: CrosshairKind::None,
             crosshair_scale: (1.0, 1.0),
-            use_fov_correction: true,
-            use_barrel_correction: true,
-            correction_strength: 0.55,
+            use_fov_correction: false,
+            use_barrel_correction: false,
+            correction_strength: 0.5,
             correction_cylindricity: 1.0,
             saved_angle_limit: None,
         }
@@ -724,13 +770,15 @@ impl From<&Config> for CameraState {
             FovCorrection::Barrel => state.use_barrel_correction = true,
         }
 
+
         state.should_transition = config.gameplay.start_in_first_person;
+        state.unlocked_movement = config.gameplay.unlocked_movement;
         state.soft_lock_on = config.gameplay.soft_lock_on;
         state.prioritize_lock_on = config.gameplay.prioritize_lock_on;
-        state.unlocked_movement = config.gameplay.unlocked_movement;
         state.unobtrusive_dodges = config.gameplay.unobtrusive_dodges;
         state.track_dodges = config.gameplay.track_dodges;
         state.restricted_sprint = config.gameplay.restricted_sprint;
+        state.controller_friendly = config.gameplay.controller_friendly;
 
         state.use_stabilizer = config.stabilizer.enabled;
         state.stabilizer_window = config.stabilizer.smoothing_window.clamp(0.1, 1.0);
