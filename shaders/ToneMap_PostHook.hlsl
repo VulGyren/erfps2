@@ -51,7 +51,7 @@ float2 MapUvFisheye(float2 uv)
     float2 c = uv - 0.5;
 
     float r2 = c.x * c.x;
-    float strength = g_ErfpsCorrectParam.x;
+    float strength = g_ErfpsCorrectParam.y;
 
     float f = 1.0 + strength * sqrt(r2) * r2;
     float fMax = 1.0 + strength * 0.125;
