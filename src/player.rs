@@ -8,7 +8,7 @@ use eldenring::{
 };
 use fromsoftware_shared::{F32ModelMatrix, F32Vector4, F32ViewMatrix, FromStatic, OwnedPtr};
 use glam::{Vec3, Vec4, Vec4Swizzles};
-
+use eldenring::cs::ChrInsExt;
 use crate::{
     program::Program,
     rva::{CHR_CAN_TARGET_RVA, GET_DMY_POS_RVA},
@@ -40,6 +40,10 @@ pub trait PlayerExt {
     fn can_target(&self, chr: *const ChrIns) -> bool;
 
     fn has_action_request(&self) -> bool;
+
+    fn has_effect(&self, effect:i32) -> bool;
+
+    fn is_button_pressed(&mut self, button:&str) -> bool;
 
     fn is_sprinting(&self) -> bool;
 
@@ -193,10 +197,22 @@ impl PlayerExt for PlayerIns {
     }
 
     fn cancel_sprint(&mut self) {
-        if self.chr_ctrl.modifier.data.movement_limit == ChrMovementLimit::NoLimit {
-            self.chr_ctrl.modifier.data.movement_limit = ChrMovementLimit::LimitToDash;
+        let Ok(world_chr_man) = (unsafe { WorldChrMan::instance() }) else {
+            return;
+        };
+
+        let Some(ref mut main_player) = world_chr_man.main_player else {
+            return;
+        };
+
+            //main_player.chr_ins.remove_speffect(100002);
+ if !self.has_effect(9017002) {
+     self.chr_ctrl.is_unlocked = false;
+ }
+            if self.chr_ctrl.modifier.data.movement_limit != ChrMovementLimit::LimitToWalking && self.chr_ctrl.modifier.data.movement_limit != ChrMovementLimit::DisableAll {
+                self.chr_ctrl.modifier.data.movement_limit = ChrMovementLimit::LimitToDash;
+            }
         }
-    }
 
     fn can_target(&self, chr: *const ChrIns) -> bool {
         unsafe {
@@ -217,6 +233,85 @@ impl PlayerExt for PlayerIns {
             .any(|i| *i >= 0)
     }
 
+    fn is_button_pressed(&mut self, button:&str) -> bool {
+        if button == "r1" {
+            if self.module_container.action_request.action_timers.r1 != 0.0 {
+                return true;
+            }
+        } else if button == "r2" {
+            if self.module_container.action_request.action_timers.r2 != 0.0 {
+                return true;
+            }
+        } else if button == "l1" {
+            if self.module_container.action_request.action_timers.l1 != 0.0 {
+                return true;
+            }
+        } else if button == "l2" {
+            if self.module_container.action_request.action_timers.l2 != 0.0 {
+                return true;
+            }
+        } else if button == "action" {
+            if self.module_container.action_request.action_timers.action != 0.0 {
+                return true;
+            }
+        } else if button == "roll" {
+            if self.module_container.action_request.action_timers.roll != 0.0 {
+                return true;
+            }
+        } else if button == "jump" {
+            if self.module_container.action_request.action_timers.jump != 0.0 {
+                return true;
+            }
+        } else if button == "action" {
+            if self.module_container.action_request.action_timers.action != 0.0 {
+                return true;
+            }
+        } else if button == "use_item" {
+            if self.module_container.action_request.action_timers.use_item != 0.0 {
+                return true;
+            }
+        } else if button == "switch_spell" {
+            if self.module_container.action_request.action_timers.switch_spell != 0.0 {
+                return true;
+            }
+        } else if button == "change_weapon_r" {
+            if self.module_container.action_request.action_timers.change_weapon_r != 0.0 {
+                return true;
+            }
+        } else if button == "change_weapon_l" {
+            if self.module_container.action_request.action_timers.change_weapon_l != 0.0 {
+                return true;
+            }
+        } else if button == "change_item" {
+            if self.module_container.action_request.action_timers.change_item != 0.0 {
+                return true;
+            }
+        } else if button == "r3" {
+            if self.module_container.action_request.action_timers.r3 != 0.0 {
+                return true;
+            }
+        } else if button == "l3" {
+            if self.module_container.action_request.action_timers.l3 != 0.0 {
+                return true;
+            }
+        } else if button == "touch_r" {
+            if self.module_container.action_request.action_timers.touch_r != 0.0 {
+                return true;
+            }
+        } else if button == "touch_l" {
+            if self.module_container.action_request.action_timers.touch_l != 0.0 {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    fn has_effect(&self, effect:i32) -> bool {
+        self.special_effect
+            .entries()
+            .any(|sp_effect| sp_effect.param_id == effect)
+    }
+
     fn is_sprinting(&self) -> bool {
         self.special_effect
             .entries()
@@ -224,7 +319,7 @@ impl PlayerExt for PlayerIns {
     }
 
     fn is_sprint_requested(&self) -> bool {
-        self.module_container.action_request.action_timers.roll > 0.3
+        self.module_container.action_request.action_timers.roll > 0.0
     }
 
     fn is_riding(&self) -> bool {
