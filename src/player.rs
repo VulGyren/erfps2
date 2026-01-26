@@ -8,6 +8,7 @@ use eldenring::{
 };
 use fromsoftware_shared::{F32ModelMatrix, F32Vector4, F32ViewMatrix, FromStatic, OwnedPtr};
 use glam::{Vec3, Vec4, Vec4Swizzles};
+use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 use eldenring::cs::ChrInsExt;
 use crate::{
     program::Program,
@@ -48,6 +49,8 @@ pub trait PlayerExt {
     fn is_sprinting(&self) -> bool;
 
     fn is_sprint_requested(&self) -> bool;
+
+    fn is_standing_sprint(&self) -> bool;
 
     fn is_riding(&self) -> bool;
 
@@ -320,6 +323,16 @@ impl PlayerExt for PlayerIns {
 
     fn is_sprint_requested(&self) -> bool {
         self.module_container.action_request.action_timers.roll > 0.0
+    }
+
+    fn is_standing_sprint(&self) -> bool {
+        self.module_container.action_request.action_timers.roll > 0.0
+            && unsafe {
+            GetAsyncKeyState(0x57) == 0
+                && GetAsyncKeyState(0x44) == 0
+                && GetAsyncKeyState(0x53) == 0
+                && GetAsyncKeyState(0x41) == 0
+        }
     }
 
     fn is_riding(&self) -> bool {
