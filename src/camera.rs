@@ -4,10 +4,7 @@ use std::{
 };
 
 use eldenring::{
-    cs::{
-        CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, CSFeManImp, ChrExFollowCam, ChrIns,
-        PlayerIns,
-    },
+    cs::{CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, CSFeManImp, ChrExFollowCam, ChrIns, PlayerIns},
     fd4::FD4Time,
 };
 use fromsoftware_shared::{F32Vector4, F32ViewMatrix, FromStatic};
@@ -77,7 +74,7 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
                 original(param_1, param_2, param_3, param_4);
             }
         })
-        .unwrap();
+            .unwrap();
 
         let follow_cam_follow = program
             .derva_ptr::<unsafe extern "C" fn(*mut ChrExFollowCam, f32, *mut c_void)>(
@@ -232,7 +229,6 @@ unsafe fn update_lock_tgt(original: &dyn Fn()) {
         if control.first_person()
             && let (state, Some(context)) = control.state_and_context()
             && !state.can_transition()
-            && !context.is_player_sprinting(state)
             && !context.player.is_riding()
             && !context.player.has_action_request()
             && !context.player.is_in_throw()
@@ -241,6 +237,9 @@ unsafe fn update_lock_tgt(original: &dyn Fn()) {
         {
             context.player.set_lock_on(true);
         }
+        if control.first_person()
+            && let (state, Some(context)) = control.state_and_context()
+            && context.player.has_effect(9017002){context.player.set_lock_on(false)}
     });
 }
 
