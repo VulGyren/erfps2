@@ -684,7 +684,7 @@ impl Default for CameraState {
         Self {
             first_person: false,
             should_transition: true,
-            fov: const { f32::to_radians(85.0) },
+            fov: const { f32::to_radians(90.0) },
             tpf: const { 1.0 / 60.0 },
             trans_time: 0.0,
             angle_limit: const { [f32::to_radians(-80.0), f32::to_radians(70.0)] },
@@ -700,8 +700,8 @@ impl Default for CameraState {
             crosshair: CrosshairKind::Cross,
             crosshair_scale: (1.0, 1.0),
             use_fov_correction: true,
-            use_barrel_correction: false,
-            correction_strength: 0.5,
+            use_barrel_correction: true,
+            correction_strength: 0.55,
             correction_cylindricity: 1.0,
             saved_angle_limit: None,
         }

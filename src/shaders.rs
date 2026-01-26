@@ -19,6 +19,8 @@ use crate::{
     },
 };
 
+pub mod screen;
+
 static TONE_MAP_HOOK: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ToneMap_PostHook.ppo"));
 
 pub fn hook_shaders(program: Program) -> eyre::Result<()> {
@@ -105,6 +107,15 @@ pub fn set_crosshair(crosshair: CrosshairKind, scale: (f32, f32)) {
     SHADER_PARAMS2.store(rscale_x | (rscale_y << 32), Ordering::Relaxed);
 }
 
+fn get_fov_correction() -> (f32, f32) {
+    let params = SHADER_PARAMS.load(Ordering::Relaxed);
+
+    let cylindricity = f32::from_bits(params as u32);
+    let strength_width_ratio = f32::from_bits((params >> 32) as u32);
+
+    (cylindricity, strength_width_ratio)
+}
+
 unsafe fn hook_shader_cb(program: Program) -> eyre::Result<()> {
     #[unsafe(naked)]
     extern "C" fn fisheye_distortion_cb_hook() {
@@ -142,7 +153,7 @@ unsafe fn hook_shader_cb(program: Program) -> eyre::Result<()> {
     // 15 ...
     let cb_hook_buf = {
         let [b0, b1, b2, b3, b4, b5, b6, b7] =
-            u64::to_le_bytes(fisheye_distortion_cb_hook as usize as u64);
+            u64::to_le_bytes(fisheye_distortion_cb_hook as *const () as u64);
         [
             0xff, 0x15, 0x04, 0x00, 0x00, 0x00, 0xeb, 0x0d, 0xeb, 0xf6, b0, b1, b2, b3, b4, b5, b6,
             b7, 0xcc, 0xcc, 0xcc,
@@ -220,4 +231,8 @@ fn set_shader_flag(state: bool, pos: u32) -> u32 {
         true => SHADER_FLAGS.fetch_or(flag, Ordering::Relaxed),
         false => SHADER_FLAGS.fetch_and(!flag, Ordering::Relaxed),
     }
+}
+
+fn get_shader_flag(pos: u32) -> bool {
+    (SHADER_FLAGS.load(Ordering::Relaxed) >> pos) & 1 != 0
 }

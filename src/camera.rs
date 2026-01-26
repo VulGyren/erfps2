@@ -4,11 +4,14 @@ use std::{
 };
 
 use eldenring::{
-    cs::{CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, ChrExFollowCam, ChrIns, PlayerIns},
+    cs::{
+        CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, CSFeManImp, ChrExFollowCam, ChrIns,
+        PlayerIns,
+    },
     fd4::FD4Time,
 };
-use fromsoftware_shared::{F32Vector4, F32ViewMatrix};
-use glam::{Vec3Swizzles, Vec4};
+use fromsoftware_shared::{F32Vector4, F32ViewMatrix, FromStatic};
+use glam::{Vec2, Vec3Swizzles, Vec4};
 
 use crate::{
     camera::control::{BehaviorState, CameraControl},
@@ -18,8 +21,9 @@ use crate::{
     rva::{
         CAMERA_STEP_UPDATE_RVA, CHR_ROOT_MOTION_RVA, FOLLOW_CAM_FOLLOW_RVA, GET_BEH_GRAPH_DATA_RVA,
         MMS_UPDATE_CHR_CAM_RVA, POSTURE_CONTROL_RIGHT_RVA, PUSH_TAE700_MODIFIER_RVA,
-        SET_WWISE_LISTENER_RVA, UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
+        SET_WWISE_LISTENER_RVA, UPDATE_FE_MAN_RVA, UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
     },
+    shaders::screen::correct_screen_coords,
 };
 
 mod control;
@@ -59,6 +63,17 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
 
         hook::install(chr_follow_cam_update, |original| {
             move |param_1| log_unwind!(update_chr_follow_cam(&mut *param_1, &|| original(param_1)))
+        })
+        .unwrap();
+
+        let fe_man_update =
+            program.derva_ptr::<unsafe extern "C" fn(*mut c_void, f32)>(UPDATE_FE_MAN_RVA);
+
+        hook::install(fe_man_update, |original| {
+            move |param_1, param_2| {
+                log_unwind!(update_fe_man());
+                original(param_1, param_2);
+            }
         })
         .unwrap();
 
@@ -235,6 +250,36 @@ unsafe fn update_chr_follow_cam(follow_cam: &mut ChrExFollowCam, original: &dyn 
 
     if CameraControl::scope(|control| control.first_person()) {
         follow_cam.locked_on_cam_offset = 0.0;
+    }
+}
+
+#[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
+unsafe fn update_fe_man() {
+    let Ok(fe_man) = (unsafe { CSFeManImp::instance() }) else {
+        return;
+    };
+
+    const FE_XY: Vec2 = Vec2::new(1920.0, 1080.0);
+    let correct_coords = |coords: &mut F32Vector4| {
+        let screen_coords = Vec2::new(coords.0, coords.1);
+        let corrected_screen_coords = correct_screen_coords(screen_coords / FE_XY) * FE_XY;
+
+        coords.0 = corrected_screen_coords.x;
+        coords.1 = corrected_screen_coords.y;
+    };
+
+    correct_coords(&mut fe_man.lock_on_pos);
+
+    for tag in &mut fe_man.enemy_chr_tag_displays {
+        if tag.is_visible {
+            correct_coords(&mut tag.screen_pos);
+        }
+    }
+
+    for tag in &mut fe_man.friendly_chr_tag_displays {
+        if tag.is_visible {
+            correct_coords(&mut tag.screen_pos);
+        }
     }
 }
 
