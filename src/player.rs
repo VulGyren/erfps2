@@ -328,10 +328,25 @@ impl PlayerExt for PlayerIns {
     fn is_standing_sprint(&self) -> bool {
         self.module_container.action_request.action_timers.roll > 0.0
             && unsafe {
-            GetAsyncKeyState(0x57) == 0
+            (GetAsyncKeyState(0x57) == 0
                 && GetAsyncKeyState(0x44) == 0
                 && GetAsyncKeyState(0x53) == 0
-                && GetAsyncKeyState(0x41) == 0
+                && GetAsyncKeyState(0x41) == 0)
+            ||
+                (GetAsyncKeyState(0x57) != 0
+                    && GetAsyncKeyState(0x44) == 0
+                    && GetAsyncKeyState(0x53) != 0
+                    && GetAsyncKeyState(0x41) == 0)
+            ||
+                (GetAsyncKeyState(0x57) == 0
+                    && GetAsyncKeyState(0x44) != 0
+                    && GetAsyncKeyState(0x53) == 0
+                    && GetAsyncKeyState(0x41) != 0)
+            ||
+                (GetAsyncKeyState(0x57) != 0
+                    && GetAsyncKeyState(0x44) != 0
+                    && GetAsyncKeyState(0x53) != 0
+                    && GetAsyncKeyState(0x41) != 0)
         }
     }
 
