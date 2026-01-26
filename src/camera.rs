@@ -66,13 +66,15 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
         })
         .unwrap();
 
-        let fe_man_update =
-            program.derva_ptr::<unsafe extern "C" fn(*mut c_void, f32)>(UPDATE_FE_MAN_RVA);
+        let fe_man_update = program
+            .derva_ptr::<unsafe extern "C" fn(*mut c_void, f32, *mut bool, *mut c_void)>(
+                UPDATE_FE_MAN_RVA,
+            );
 
         hook::install(fe_man_update, |original| {
-            move |param_1, param_2| {
+            move |param_1, param_2, param_3, param_4| {
                 log_unwind!(update_fe_man());
-                original(param_1, param_2);
+                original(param_1, param_2, param_3, param_4);
             }
         })
         .unwrap();
