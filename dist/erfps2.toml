@@ -10,7 +10,7 @@ horizontal_fov = 90.0
 # Correction of distortion caused by high FOV.
 # These options reduce FOV distortion and may improve depth perception in first person.
 # Possible values: "none", "fisheye", "barrel"
-fov_correction = "barrel"
+fov_correction = "none"
 
 # The strength of FOV correction.
 # Larger values may introduce visible radial curvature and a reduction in image quality.
@@ -24,17 +24,13 @@ fov_correction_cylindricity = 1.0
 
 [gameplay]
 # When starting up the game and loading a character the camera will start out in first person.
-start_in_first_person = true
-
-# Locking on to enemies in first person does not restrict camera movement.
-# The default "hard" lock on aims the camera at the targeted enemy.
-soft_lock_on = false
-
-# When an enemy is on screen lock on will be prioritized to switching perspectives.
-prioritize_lock_on = true
+start_in_first_person = false
 
 # Some animations (like attacks) allow for freer directional movement in first person.
 unlocked_movement = true
+
+# When an enemy is on screen lock on will be prioritized to switching perspectives.
+prioritize_lock_on = false
 
 # The player's body is made transparent during dodges, improving visibility.
 unobtrusive_dodges = false
@@ -43,7 +39,14 @@ unobtrusive_dodges = false
 track_dodges = false
 
 # Initial sprinting direction is restricted to moving forward.
-restricted_sprint = false
+restricted_sprint = true
+
+# Controls will use interact key and lock on for controller friendly, otherwise uses Delete key to toggle and Tilde for free look.
+controller_friendly = false
+
+# Locking on to enemies in first person does not restrict camera movement.
+# The default "hard" lock on aims the camera at the targeted enemy.
+soft_lock_on = true
 
 [stabilizer]
 # Stabilization of camera movement in first person.
@@ -57,12 +60,12 @@ smoothing_window = 0.3
 # The strength of camera smoothing.
 # Larger values result in smoother camera movement but also separate it from the player's.
 # Possible value range: 0.0 - 1.0
-smoothing_factor = 0.8
+smoothing_factor = 0.6
 
 [crosshair]
 # Crosshair in first person.
 # Possible values: "none", "cross", "dot", "circle", "circledot", "angled"
-kind = "cross"
+kind = "none"
 
 # The horizontal scale of the crosshair reticle.
 # Possible value range: 0.1 - 4.0
