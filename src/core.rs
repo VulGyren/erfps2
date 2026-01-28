@@ -8,7 +8,7 @@ use std::{
 
 use eldenring::cs::{
     CSActionButtonMan, CSRemo, ChrExFollowCam, ChrIns, FieldInsHandle, FieldInsType, GameDataMan,
-    PlayerIns,
+    LockTgtMan, PlayerIns,
 };
 use fromsoftware_shared::{F32ViewMatrix, FromStatic};
 use glam::{EulerRot, Mat3A, Mat4, Quat, Vec3, Vec4};
@@ -147,6 +147,47 @@ impl<'s, W: WorldState> CoreLogicContext<'s, W> {
             fov,
         );
     }
+
+    pub fn update_follow_cam(&mut self, follow_cam: &mut ChrExFollowCam) {
+        let first_person = self.first_person();
+
+        unsafe {
+            *Program::current().derva::<bool>(CAM_WALL_RECOVERY_RVA) &= !first_person;
+        }
+
+        follow_cam.camera_auto_rotation &= !first_person;
+
+        if !first_person {
+            if let Some(saved_angle_limit) = self.saved_angle_limit.take() {
+                follow_cam.angle_limit[1] = saved_angle_limit;
+            }
+
+            return;
+        }
+
+        let angle_limit = mem::replace(&mut follow_cam.angle_limit, self.config.angle_limit);
+
+        if angle_limit[1] != self.config.angle_limit[1] {
+            self.saved_angle_limit = Some(angle_limit[1]);
+        }
+
+        if let Some(player) = PlayerIns::main_player()
+            && player.is_approaching_ladder()
+        {
+            follow_cam.reset_camera_y = true;
+            follow_cam.reset_camera_x = true;
+        }
+
+        if let Ok(lock_tgt) = unsafe { LockTgtMan::instance() } {
+            let lock_chase_rate = &mut follow_cam.lock_chase_rate;
+
+            if lock_tgt.is_locked_on && *lock_chase_rate <= 1.0 {
+                *lock_chase_rate = f32::min(*lock_chase_rate + self.tpf, 1.0);
+            } else if *lock_chase_rate > 0.3 {
+                *lock_chase_rate = f32::max(*lock_chase_rate - self.tpf, 0.3);
+            }
+        }
+    }
 }
 
 impl<'s> CoreLogicContext<'_, World<'s>> {
@@ -188,6 +229,11 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
             if !first_person {
                 self.player.make_transparent(false);
                 self.lock_tgt.lock_camera = true;
+
+                self.chr_cam.ex_follow_cam.lock_chase_rate = 0.3;
+                self.chr_cam.ex_follow_cam.max_lock_target_offset = 0.05;
+            } else {
+                self.chr_cam.ex_follow_cam.max_lock_target_offset = 0.0;
             }
         }
 
@@ -321,33 +367,6 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
 
         self.cs_cam.pers_cam_1.fov = fov;
         self.chr_cam.pers_cam.fov = fov;
-    }
-
-    pub fn update_follow_cam(&mut self, follow_cam: &mut ChrExFollowCam) {
-        let first_person = self.first_person();
-
-        unsafe {
-            *Program::current().derva::<bool>(CAM_WALL_RECOVERY_RVA) &= !first_person;
-        }
-
-        follow_cam.camera_auto_rotation &= !first_person;
-
-        if first_person {
-            let angle_limit = mem::replace(&mut follow_cam.angle_limit, self.config.angle_limit);
-
-            if angle_limit[1] != self.config.angle_limit[1] {
-                self.saved_angle_limit = Some(angle_limit[1]);
-            }
-
-            if let Some(player) = PlayerIns::main_player()
-                && player.is_approaching_ladder()
-            {
-                follow_cam.reset_camera_y = true;
-                follow_cam.reset_camera_x = true;
-            }
-        } else if let Some(saved_angle_limit) = self.saved_angle_limit.take() {
-            follow_cam.angle_limit[1] = saved_angle_limit;
-        }
     }
 
     pub fn fov(&self) -> f32 {

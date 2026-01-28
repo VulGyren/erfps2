@@ -208,7 +208,7 @@ unsafe fn update_lock_tgt(original: &dyn Fn()) {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn update_chr_follow_cam(follow_cam: &mut ChrExFollowCam, original: &dyn Fn()) {
-    CoreLogic::scope::<World, _>(|mut context| context.update_follow_cam(follow_cam));
+    CoreLogic::scope::<Void, _>(|mut context| context.update_follow_cam(follow_cam));
 
     original();
 
