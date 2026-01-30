@@ -246,12 +246,12 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
 
         if self.config.use_stabilizer {
             let player_mtx = Mat4::from(self.player.chr_ctrl.model_matrix);
-            let local_head_pos = player_mtx.inverse().transform_point3(head_pos);
+            let local_head_pos = player_mtx.inverse().project_point3(head_pos);
 
             let stabilized = self.stabilizer.next(frame, local_head_pos);
             let delta = stabilized - local_head_pos;
 
-            head_pos = player_mtx.transform_point3(
+            head_pos = player_mtx.project_point3(
                 local_head_pos + delta.clamp_length_max(self.config.stabilizer_factor * 0.1),
             );
         }
