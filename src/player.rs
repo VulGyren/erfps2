@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub trait PlayerExt {
-    fn main_player<'a>() -> Option<&'a mut Self>;
+    unsafe fn main_player<'a>() -> Option<&'a mut Self>;
 
     fn model_mtx(&self) -> F32ModelMatrix;
 
