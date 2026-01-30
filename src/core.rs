@@ -3,6 +3,7 @@ use std::{
     ffi::{CStr, c_char},
     mem,
     ops::{Deref, DerefMut},
+    ptr::NonNull,
     sync::{LazyLock, Once, RwLock},
 };
 
@@ -40,12 +41,12 @@ mod stabilizer;
 
 pub struct CoreLogic {
     config: ConfigUpdater,
-    state: State,
+    state: RwLock<State>,
 }
 
 pub struct CoreLogicContext<'s, W> {
     pub config: &'s Config,
-    pub world: W,
+    world: NonNull<W>,
 }
 
 pub struct State {
@@ -62,35 +63,56 @@ pub struct State {
 
 impl CoreLogic {
     pub fn scope<W: WorldState, R>(
-        f: impl for<'lt> FnOnce(CoreLogicContext<'_, W::With<'lt>>) -> R,
+        f: impl for<'lt> FnOnce(&CoreLogicContext<'_, W::With<'lt>>) -> R,
     ) -> W::Result<R> {
         let scoped = CoreLogic::get();
 
-        let mut scoped = scoped.write().unwrap();
-        let scoped = &mut *scoped;
+        let config = scoped.config.get_or_update();
+        let state = scoped.state.read().unwrap();
+
+        W::in_world(&state, move |world| {
+            f(&CoreLogicContext {
+                config: &config,
+                world: NonNull::from_ref(world),
+            })
+        })
+    }
+
+    pub fn scope_mut<W: WorldState, R>(
+        f: impl for<'lt> FnOnce(&mut CoreLogicContext<'_, W::With<'lt>>) -> R,
+    ) -> W::Result<R> {
+        let scoped = CoreLogic::get();
 
         let config = scoped.config.get_or_update();
-        let state = &mut scoped.state;
+        let mut state = scoped.state.write().unwrap();
 
-        W::in_world(state, move |world| f(CoreLogicContext { config, world }))
+        W::in_world_mut(&mut state, move |world| {
+            f(&mut CoreLogicContext {
+                config: &config,
+                world: NonNull::from_mut(world),
+            })
+        })
     }
 
     pub fn is_first_person() -> bool {
         CoreLogic::scope::<Void, _>(|context| context.first_person())
     }
 
-    fn get() -> &'static RwLock<CoreLogic> {
-        static S: LazyLock<RwLock<CoreLogic>> = LazyLock::new(RwLock::default);
+    fn get() -> &'static CoreLogic {
+        static S: LazyLock<CoreLogic> = LazyLock::new(CoreLogic::default);
         &S
     }
 }
 
 impl Default for CoreLogic {
     fn default() -> Self {
-        let mut config = ConfigUpdater::new().unwrap();
-        let state = State::from_config(config.get_or_update());
+        let config = ConfigUpdater::new().unwrap();
+        let state = State::from_config(&config.get_or_update());
 
-        Self { config, state }
+        Self {
+            config,
+            state: RwLock::new(state),
+        }
     }
 }
 
@@ -113,12 +135,14 @@ impl State {
     }
 }
 
-impl<'s, W: WorldState> CoreLogicContext<'s, W> {
-    pub fn first_person(&self) -> bool
-    where
-        for<'a> &'a ChrCam: FromWorld<&'a W>,
-        for<'a> &'a CSRemo: FromWorld<&'a W>,
-    {
+impl<'s, W: WorldState> CoreLogicContext<'s, W>
+where
+    for<'a> &'a ChrCam: FromWorld<&'a W>,
+    for<'a> &'a CSRemo: FromWorld<&'a W>,
+    for<'a> &'a LockTgtMan: FromWorld<&'a W>,
+    for<'a> &'a PlayerIns: FromWorld<&'a W>,
+{
+    pub fn first_person(&self) -> bool {
         let in_cutscene = || {
             self.get::<CSRemo>()
                 .and_then(|remo| remo.remo_man.as_ref())
@@ -137,29 +161,7 @@ impl<'s, W: WorldState> CoreLogicContext<'s, W> {
         self.tpf = tpf;
     }
 
-    fn update(&mut self) {
-        let samples = (self.config.stabilizer_window / self.tpf).ceil() as u32;
-        self.stabilizer.set_sample_count(samples);
-
-        self.update_fov_correction(self.config.fov);
-    }
-
-    fn update_fov_correction(&self, fov: f32) {
-        enable_fov_correction(
-            self.first_person && self.config.use_fov_correction,
-            self.config.correction_strength,
-            self.config.correction_cylindricity,
-            self.config.use_barrel_correction,
-            fov,
-        );
-    }
-
-    pub fn update_follow_cam(&mut self, follow_cam: &mut ChrExFollowCam)
-    where
-        for<'a> &'a ChrCam: FromWorld<&'a W>,
-        for<'a> &'a CSRemo: FromWorld<&'a W>,
-        for<'a> &'a LockTgtMan: FromWorld<&'a W>,
-    {
+    pub fn update_follow_cam(&mut self, follow_cam: &mut ChrExFollowCam) {
         let first_person = self.first_person();
 
         unsafe {
@@ -182,7 +184,7 @@ impl<'s, W: WorldState> CoreLogicContext<'s, W> {
             self.saved_angle_limit = Some(angle_limit[1]);
         }
 
-        if let Some(player) = PlayerIns::main_player()
+        if let Some(player) = self.get::<PlayerIns>()
             && player.is_approaching_ladder()
         {
             follow_cam.reset_camera_y = true;
@@ -200,6 +202,61 @@ impl<'s, W: WorldState> CoreLogicContext<'s, W> {
         }
     }
 
+    pub fn has_state(&self, state: BehaviorState) -> bool {
+        self.behavior_states.has_state(state)
+    }
+
+    pub fn fov(&self) -> f32 {
+        if self.is_aim_cam()
+            && let Some(chr_cam) = self.get::<ChrCam>()
+        {
+            let aim_cam_fov = chr_cam.aim_cam.fov;
+
+            if aim_cam_fov <= self.config.fov {
+                return aim_cam_fov;
+            }
+
+            // f32::to_radians(25.0).atan()
+            const AIM_CAM_HALF_WIDTH: f32 = 0.41143;
+            let width_ratio = aim_cam_fov.atan() / AIM_CAM_HALF_WIDTH;
+
+            f32::tan(self.config.fov.atan() * width_ratio)
+        } else {
+            self.config.fov
+        }
+    }
+
+    fn update(&mut self) {
+        let samples = (self.config.stabilizer_window / self.tpf).ceil() as u32;
+        self.stabilizer.set_sample_count(samples);
+
+        self.update_fov_correction();
+    }
+
+    fn update_fov_correction(&self) {
+        enable_fov_correction(
+            self.first_person && self.config.use_fov_correction,
+            self.config.correction_strength,
+            self.config.correction_cylindricity,
+            self.config.use_barrel_correction,
+            self.fov(),
+        );
+    }
+
+    fn set_crosshair_if(&self, cond: bool) {
+        let is_hud_enabled = unsafe {
+            GameDataMan::instance().is_some_and(|game_data_man| game_data_man.is_hud_enabled())
+        };
+
+        let crosshair = if cond && is_hud_enabled {
+            self.config.crosshair
+        } else {
+            CrosshairKind::None
+        };
+
+        set_crosshair(crosshair, self.config.crosshair_scale);
+    }
+
     fn is_aim_cam(&self) -> bool
     where
         for<'a> &'a ChrCam: FromWorld<&'a W>,
@@ -212,10 +269,7 @@ impl<'s, W: WorldState> CoreLogicContext<'s, W> {
         })
     }
 
-    fn is_dist_view_cam(&self) -> bool
-    where
-        for<'a> &'a ChrCam: FromWorld<&'a W>,
-    {
+    fn is_dist_view_cam(&self) -> bool {
         self.get::<ChrCam>()
             .is_some_and(|chr_cam| chr_cam.camera_type == ChrCamType::Unk5)
     }
@@ -386,23 +440,6 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
         self.chr_cam.pers_cam.fov = fov;
     }
 
-    pub fn fov(&self) -> f32 {
-        if !self.is_aim_cam() {
-            return self.config.fov;
-        }
-
-        let aim_cam_fov = self.chr_cam.aim_cam.fov;
-        if aim_cam_fov <= self.config.fov {
-            return aim_cam_fov;
-        }
-
-        // f32::to_radians(25.0).atan()
-        const AIM_CAM_HALF_WIDTH: f32 = 0.41143;
-        let width_ratio = aim_cam_fov.atan() / AIM_CAM_HALF_WIDTH;
-
-        f32::tan(self.config.fov.atan() * width_ratio)
-    }
-
     pub fn is_player_sprinting(&self) -> bool {
         if self.config.restricted_sprint {
             self.player.is_sprinting()
@@ -444,16 +481,12 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
         }
     }
 
-    pub fn has_state(&self, state: BehaviorState) -> bool {
-        self.behavior_states.has_state(state)
-    }
-
     fn transition(&mut self) {
         self.first_person = !self.first_person;
 
         self.lock_tgt.is_lock_on_requested = false;
 
-        self.update_fov_correction(self.fov());
+        self.update_fov_correction();
 
         let first_person = self.first_person();
 
@@ -474,20 +507,6 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
         } else {
             self.chr_cam.ex_follow_cam.max_lock_target_offset = 0.0;
         }
-    }
-
-    fn set_crosshair_if(&self, cond: bool) {
-        let is_hud_enabled = unsafe {
-            GameDataMan::instance().is_some_and(|game_data_man| game_data_man.is_hud_enabled())
-        };
-
-        let crosshair = if cond && is_hud_enabled {
-            self.config.crosshair
-        } else {
-            CrosshairKind::None
-        };
-
-        set_crosshair(crosshair, self.config.crosshair_scale);
     }
 
     pub fn update_behavior_states(&mut self) {
@@ -580,13 +599,13 @@ impl<'s, W: WorldState> Deref for CoreLogicContext<'s, W> {
     type Target = W;
 
     fn deref(&self) -> &Self::Target {
-        &self.world
+        unsafe { self.world.as_ref() }
     }
 }
 
 impl<'s, W: WorldState> DerefMut for CoreLogicContext<'s, W> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.world
+        unsafe { self.world.as_mut() }
     }
 }
 

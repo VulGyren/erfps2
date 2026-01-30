@@ -2,18 +2,18 @@ use std::{ffi::c_void, mem, ptr};
 
 use eldenring::{
     cs::{
-        CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, CSFeManImp, ChrExFollowCam, ChrIns,
-        PlayerIns,
+        CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, CSFeManImp, ChrCtrl, ChrExFollowCam,
+        ChrIns, PlayerIns,
     },
     fd4::FD4Time,
 };
-use fromsoftware_shared::{F32Vector4, F32ViewMatrix, FromStatic};
+use fromsoftware_shared::{F32ModelMatrix, F32Vector4, F32ViewMatrix, FromStatic};
 use glam::{Vec2, Vec3Swizzles, Vec4};
 
 use crate::{
     core::{
         BehaviorState, CoreLogic,
-        world::{Void, World},
+        world::{Void, World, WorldState},
     },
     hooks::install::hook,
     player::PlayerExt,
@@ -161,9 +161,9 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn update_camera(tpf: f32, original: &dyn Fn()) {
-    CoreLogic::scope::<Void, _>(|mut context| context.update_tpf(tpf));
+    CoreLogic::scope_mut::<Void, _>(|context| context.update_tpf(tpf));
 
-    let camera_updated = CoreLogic::scope::<World, _>(|mut context| {
+    let camera_updated = CoreLogic::scope_mut::<World, _>(|context| {
         context.update_cs_cam();
         context.first_person()
     });
@@ -175,9 +175,9 @@ unsafe fn update_camera(tpf: f32, original: &dyn Fn()) {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn update_move_map_step(original: &dyn Fn()) {
-    CoreLogic::scope::<Void, _>(|mut context| context.next_frame());
+    CoreLogic::scope_mut::<Void, _>(|context| context.next_frame());
 
-    CoreLogic::scope::<World, _>(|mut context| {
+    CoreLogic::scope_mut::<World, _>(|context| {
         context.update_behavior_states();
         context.try_transition();
         context.update_chr_cam();
@@ -190,7 +190,7 @@ unsafe fn update_move_map_step(original: &dyn Fn()) {
 unsafe fn update_lock_tgt(original: &dyn Fn()) {
     original();
 
-    CoreLogic::scope::<World, _>(|mut context| {
+    CoreLogic::scope_mut::<World, _>(|context| {
         if context.first_person()
             && !context.can_transition()
             && !context.is_player_sprinting()
@@ -208,7 +208,7 @@ unsafe fn update_lock_tgt(original: &dyn Fn()) {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn update_chr_follow_cam(follow_cam: &mut ChrExFollowCam, original: &dyn Fn()) {
-    CoreLogic::scope::<Void, _>(|mut context| context.update_follow_cam(follow_cam));
+    CoreLogic::scope_mut::<Void, _>(|context| context.update_follow_cam(follow_cam));
 
     original();
 
@@ -253,7 +253,7 @@ unsafe fn wwise_listener_for_fp() -> Option<F32ViewMatrix> {
         return None;
     }
 
-    let player = PlayerIns::main_player()?;
+    let player = unsafe { PlayerIns::main_player()? };
     let mut mtx = player.model_mtx();
 
     mtx.3.1 += 1.5;
@@ -274,7 +274,7 @@ unsafe fn tae700_override(args: &mut [f32; 8]) {
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
 unsafe fn hand_posture_control(some_player: *const PlayerIns) -> Option<i32> {
-    let main_player = PlayerIns::main_player()?;
+    let main_player = unsafe { PlayerIns::main_player()? };
     let is_main_player = ptr::eq(some_player, main_player);
 
     if !is_main_player || main_player.is_2h() || !CoreLogic::is_first_person() {
@@ -289,15 +289,15 @@ unsafe fn root_motion_modifier(
     some_chr: *const ChrIns,
     root_motion: F32Vector4,
 ) -> Option<F32Vector4> {
-    let main_player = PlayerIns::main_player()?;
+    let main_player = unsafe { PlayerIns::main_player()? };
     let is_main_player = ptr::addr_eq(some_chr, main_player);
 
     if !is_main_player
-        || !CoreLogic::scope::<World, _>(|context| {
+        || !CoreLogic::scope::<Void, _>(|context| {
             context.config.unlocked_movement
                 && context.first_person()
                 && context.has_state(BehaviorState::Attack)
-        })?
+        })
     {
         return None;
     }

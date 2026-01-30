@@ -3,7 +3,8 @@ use std::{
     fs, io,
     os::windows::ffi::OsStringExt,
     path::{Path, PathBuf},
-    time::{Duration, Instant, SystemTime},
+    sync::{RwLock, RwLockReadGuard, atomic::Ordering},
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use toml::de::Error as TomlError;
@@ -18,13 +19,18 @@ use windows::{
     core::{Error as WinError, PCWSTR},
 };
 
-use crate::config::Config;
+use crate::config::{
+    Config,
+    updater::time::{AtomicDuration, AtomicInstant},
+};
+
+mod time;
 
 pub struct ConfigUpdater {
     config_path: Box<Path>,
-    config: Config,
-    last_update: Instant,
-    last_timestamp: Option<SystemTime>,
+    config: RwLock<Config>,
+    last_update: AtomicInstant,
+    last_timestamp: AtomicDuration,
 }
 
 impl ConfigUpdater {
@@ -42,36 +48,42 @@ impl ConfigUpdater {
         let config = Self::read_or_default(&config_path);
 
         let last_update = Instant::now();
-
         let last_timestamp = fs::metadata(&config_path)
             .and_then(|meta| meta.modified())
-            .ok();
+            .map_or_else(
+                |_| last_update.elapsed(),
+                |timestamp| timestamp.duration_since(UNIX_EPOCH).unwrap(),
+            );
 
         Ok(Self {
             config_path,
-            config,
-            last_update,
-            last_timestamp,
+            config: RwLock::new(config),
+            last_update: AtomicInstant::new(last_update),
+            last_timestamp: AtomicDuration::new(last_timestamp),
         })
     }
 
-    pub fn get_or_update(&mut self) -> &Config {
-        if self.last_update.elapsed() > Self::UPDATE_INTERVAL {
-            self.last_update = Instant::now();
+    pub fn get_or_update(&self) -> RwLockReadGuard<'_, Config> {
+        let now = Instant::now();
+
+        if now - self.last_update.load(Ordering::Acquire) > Self::UPDATE_INTERVAL {
+            self.last_update.store(now, Ordering::Release);
 
             let timestamp = fs::metadata(&self.config_path)
                 .inspect_err(Self::report_fs_error)
                 .and_then(|m| m.modified())
-                .ok();
+                .map(|timestamp| timestamp.duration_since(UNIX_EPOCH).unwrap());
 
-            if timestamp != self.last_timestamp {
-                log::info!("reloading config");
-                self.config = Self::read_or_default(&self.config_path);
-                self.last_timestamp = timestamp;
+            if let Ok(timestamp) = timestamp
+                && timestamp != self.last_timestamp.load(Ordering::Relaxed)
+            {
+                let mut config = self.config.write().unwrap();
+                *config = Self::read_or_default(&self.config_path);
+                self.last_timestamp.store(timestamp, Ordering::Relaxed);
             }
         }
 
-        &self.config
+        self.config.read().unwrap()
     }
 
     fn read_or_default(path: &Path) -> Config {

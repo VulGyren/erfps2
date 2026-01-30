@@ -59,7 +59,7 @@ pub trait PlayerExt {
 }
 
 impl PlayerExt for PlayerIns {
-    fn main_player<'a>() -> Option<&'a mut Self> {
+    unsafe fn main_player<'a>() -> Option<&'a mut Self> {
         let world_chr_man = unsafe { WorldChrMan::instance().ok()? };
         world_chr_man.main_player.as_deref_mut()
     }

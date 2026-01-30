@@ -1,4 +1,8 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
 use eldenring::cs::{CSCamera, CSRemo, ChrCam, LockTgtMan, PlayerIns, WorldChrMan};
 use fromsoftware_shared::FromStatic;
@@ -7,8 +11,13 @@ use crate::core::State;
 
 pub trait WorldState: InWorldResult + Deref<Target = State> + DerefMut + WithLt + Sized {
     fn in_world<'s, R>(
+        state: &'s State,
+        f: impl for<'lt> FnOnce(&Self::With<'lt>) -> R,
+    ) -> Self::Result<R>;
+
+    fn in_world_mut<'s, R>(
         state: &'s mut State,
-        f: impl for<'lt> FnOnce(Self::With<'lt>) -> R,
+        f: impl for<'lt> FnOnce(&mut Self::With<'lt>) -> R,
     ) -> Self::Result<R>;
 
     fn get<T>(&self) -> Option<&T>
@@ -45,17 +54,19 @@ pub struct World<'s> {
     pub cs_remo: &'static mut CSRemo,
     pub lock_tgt: &'static mut LockTgtMan,
     pub player: &'static mut PlayerIns,
-    pub state: &'s mut State,
+    state: NonNull<State>,
+    _marker: PhantomData<&'s mut State>,
 }
 
 pub struct Void<'s> {
-    pub state: &'s mut State,
+    state: NonNull<State>,
+    _marker: PhantomData<&'s mut State>,
 }
 
 impl WorldState for World<'_> {
     fn in_world<'s, R>(
-        state: &'s mut State,
-        f: impl for<'lt> FnOnce(Self::With<'lt>) -> R,
+        state: &'s State,
+        f: impl for<'lt> FnOnce(&Self::With<'lt>) -> R,
     ) -> Self::Result<R> {
         let world_chr_man = unsafe { WorldChrMan::instance().ok()? };
 
@@ -64,17 +75,41 @@ impl WorldState for World<'_> {
         let cs_remo = unsafe { CSRemo::instance().ok()? };
         let lock_tgt = unsafe { LockTgtMan::instance().ok()? };
         let player = world_chr_man.main_player.as_deref_mut()?;
+        let state = NonNull::from_ref(state);
 
-        let context = World {
+        Some(f(&World {
             cs_cam,
             chr_cam,
             cs_remo,
             lock_tgt,
             player,
             state,
-        };
+            _marker: PhantomData,
+        }))
+    }
 
-        Some(f(context))
+    fn in_world_mut<'s, R>(
+        state: &'s mut State,
+        f: impl for<'lt> FnOnce(&mut Self::With<'lt>) -> R,
+    ) -> Self::Result<R> {
+        let world_chr_man = unsafe { WorldChrMan::instance().ok()? };
+
+        let cs_cam = unsafe { CSCamera::instance().ok()? };
+        let chr_cam = unsafe { world_chr_man.chr_cam?.as_mut() };
+        let cs_remo = unsafe { CSRemo::instance().ok()? };
+        let lock_tgt = unsafe { LockTgtMan::instance().ok()? };
+        let player = world_chr_man.main_player.as_deref_mut()?;
+        let state = NonNull::from_mut(state);
+
+        Some(f(&mut World {
+            cs_cam,
+            chr_cam,
+            cs_remo,
+            lock_tgt,
+            player,
+            state,
+            _marker: PhantomData,
+        }))
     }
 }
 
@@ -88,10 +123,23 @@ impl WithLt for World<'_> {
 
 impl WorldState for Void<'_> {
     fn in_world<'s, R>(
-        state: &'s mut State,
-        f: impl for<'lt> FnOnce(Self::With<'lt>) -> R,
+        state: &'s State,
+        f: impl for<'lt> FnOnce(&Self::With<'lt>) -> R,
     ) -> Self::Result<R> {
-        f(Void { state })
+        f(&Void {
+            state: NonNull::from_ref(state),
+            _marker: PhantomData,
+        })
+    }
+
+    fn in_world_mut<'s, R>(
+        state: &'s mut State,
+        f: impl for<'lt> FnOnce(&mut Self::With<'lt>) -> R,
+    ) -> Self::Result<R> {
+        f(&mut Void {
+            state: NonNull::from_mut(state),
+            _marker: PhantomData,
+        })
     }
 }
 
@@ -107,13 +155,13 @@ impl Deref for World<'_> {
     type Target = State;
 
     fn deref(&self) -> &Self::Target {
-        self.state
+        unsafe { self.state.as_ref() }
     }
 }
 
 impl DerefMut for World<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.state
+        unsafe { self.state.as_mut() }
     }
 }
 
@@ -121,13 +169,13 @@ impl Deref for Void<'_> {
     type Target = State;
 
     fn deref(&self) -> &Self::Target {
-        self.state
+        unsafe { self.state.as_ref() }
     }
 }
 
 impl DerefMut for Void<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.state
+        unsafe { self.state.as_mut() }
     }
 }
 
