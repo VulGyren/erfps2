@@ -6,6 +6,7 @@ use crate::config::CrosshairKind;
 pub struct Config {
     pub fov: Fov,
     pub gameplay: Gameplay,
+    pub player: Player,
     pub stabilizer: Stabilizer,
     pub crosshair: Crosshair,
 }
@@ -29,6 +30,11 @@ pub struct Gameplay {
     pub track_dodges: bool,
     pub track_damage: bool,
     pub restricted_sprint: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Player {
+    pub height_multiplier: f32,
 }
 
 #[derive(Debug, Deserialize)]

@@ -7,7 +7,7 @@ use eldenring::{
     },
     fd4::FD4Time,
 };
-use fromsoftware_shared::{F32ModelMatrix, F32Vector4, F32ViewMatrix, FromStatic};
+use fromsoftware_shared::{F32Vector4, F32ViewMatrix, FromStatic};
 use glam::{Vec2, Vec3Swizzles, Vec4};
 
 use crate::{
@@ -21,7 +21,7 @@ use crate::{
     rva::{
         CAMERA_STEP_UPDATE_RVA, CHR_ROOT_MOTION_RVA, FOLLOW_CAM_FOLLOW_RVA, MMS_UPDATE_CHR_CAM_RVA,
         POSTURE_CONTROL_RIGHT_RVA, PUSH_TAE700_MODIFIER_RVA, SET_WWISE_LISTENER_RVA,
-        UPDATE_FE_MAN_RVA, UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
+        UPDATE_CHR_MODEL_POS_RVA, UPDATE_FE_MAN_RVA, UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
     },
     shaders::screen::correct_screen_coords,
 };
@@ -42,6 +42,13 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
 
         hook(mms_update, |original| {
             move |param_1| update_move_map_step(&|| original(param_1))
+        });
+
+        let chr_model_pos_update =
+            program.derva_ptr::<unsafe extern "C" fn(*mut ChrCtrl)>(UPDATE_CHR_MODEL_POS_RVA);
+
+        hook(chr_model_pos_update, |original| {
+            move |param_1| update_chr_model_pos(param_1, &|| original(param_1))
         });
 
         let lock_tgt_update =
@@ -157,6 +164,20 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg_attr(debug_assertions, libhotpatch::hotpatch)]
+unsafe fn update_chr_model_pos(chr_ctrl: *mut ChrCtrl, original: &dyn Fn()) {
+    original();
+
+    if CoreLogic::scope::<Void, _>(|context| {
+        context
+            .get::<PlayerIns>()
+            .is_some_and(|player| player.chr_ctrl.as_ptr() == chr_ctrl)
+            && context.first_person()
+    }) {
+        CoreLogic::scope_mut::<World, _>(|context| context.update_chr_model_pos());
+    }
 }
 
 #[cfg_attr(debug_assertions, libhotpatch::hotpatch)]

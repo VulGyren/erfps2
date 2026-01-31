@@ -51,6 +51,12 @@ track_damage = false
 # Initial sprinting direction is restricted to moving forward.
 restricted_sprint = false
 
+[player]
+# Scales the player's height (first person only).
+# The player is assumed to be about 170cm (5'7") tall by default.
+# Possible value range: 0.95 - 1.05
+height_multiplier = 1.0
+
 [stabilizer]
 # Stabilization of camera movement in first person.
 enabled = true

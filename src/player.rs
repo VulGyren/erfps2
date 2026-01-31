@@ -15,11 +15,15 @@ use crate::{
 };
 
 pub trait PlayerExt {
+    const HEIGHT: f32 = 1.7;
+
     unsafe fn main_player<'a>() -> Option<&'a mut Self>;
 
     fn model_mtx(&self) -> F32ModelMatrix;
 
     fn head_position(&self) -> F32ModelMatrix;
+
+    fn location_entity_matrix_mut(&mut self) -> &mut F32ModelMatrix;
 
     fn input_move_dir(&self) -> Vec3;
 
@@ -88,6 +92,16 @@ impl PlayerExt for PlayerIns {
             get_dmy_pos(&**self, &mut dmy_pos, &HEAD_DMY_ID, 1);
 
             dmy_pos
+        }
+    }
+
+    fn location_entity_matrix_mut(&mut self) -> &mut F32ModelMatrix {
+        unsafe {
+            &mut *self
+                .chr_ctrl
+                .location_mtx44_chr_entity
+                .byte_add(0x70)
+                .cast::<F32ModelMatrix>()
         }
     }
 

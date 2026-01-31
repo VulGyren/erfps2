@@ -440,6 +440,20 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
         self.chr_cam.pers_cam.fov = fov;
     }
 
+    pub fn update_chr_model_pos(&mut self) {
+        let extra_player_height = self.config.extra_player_height;
+        let player_height = extra_player_height * PlayerIns::HEIGHT;
+        let player_scale = 1.0 + extra_player_height.max(0.0);
+
+        let location_entity_matrix = self.player.location_entity_matrix_mut();
+        location_entity_matrix.3.1 += player_height;
+
+        let chr_ctrl = self.player.chr_ctrl.as_mut();
+        chr_ctrl.model_matrix.3.1 += player_height;
+
+        self.player.chr_ctrl.scale_size_y = player_scale;
+    }
+
     pub fn is_player_sprinting(&self) -> bool {
         if self.config.restricted_sprint {
             self.player.is_sprinting()
@@ -504,6 +518,8 @@ impl<'s> CoreLogicContext<'_, World<'s>> {
 
             self.chr_cam.ex_follow_cam.lock_chase_rate = 0.3;
             self.chr_cam.ex_follow_cam.max_lock_target_offset = 0.05;
+
+            self.player.chr_ctrl.scale_size_y = 1.0;
         } else {
             self.chr_cam.ex_follow_cam.max_lock_target_offset = 0.0;
         }

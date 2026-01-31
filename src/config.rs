@@ -14,6 +14,8 @@ pub struct Config {
 
     pub angle_limit: [f32; 2],
 
+    pub extra_player_height: f32,
+
     pub start_in_first_person: bool,
 
     pub show_tutorial: bool,
@@ -66,6 +68,12 @@ impl From<toml::Config> for Config {
     fn from(config: toml::Config) -> Self {
         let degrees = config.fov.horizontal_fov.clamp(45.0, 130.0);
         let fov = degrees.to_radians();
+
+        let mut extra_player_height = config.player.height_multiplier.clamp(0.975, 1.05) - 1.0;
+        if extra_player_height > 0.0 {
+            extra_player_height *= 0.5;
+        }
+
         let stabilizer_window = config.stabilizer.smoothing_window.clamp(0.1, 1.0);
         let stabilizer_factor = config.stabilizer.smoothing_factor.clamp(0.0, 1.0);
 
@@ -85,6 +93,7 @@ impl From<toml::Config> for Config {
         Self {
             fov,
             angle_limit: const { [f32::to_radians(-80.0), f32::to_radians(70.0)] },
+            extra_player_height,
             start_in_first_person: config.gameplay.start_in_first_person,
             show_tutorial: config.gameplay.show_tutorial,
             prioritize_lock_on: config.gameplay.prioritize_lock_on,
