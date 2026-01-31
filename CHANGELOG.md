@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] 2026-01-31
+
+### Added
+
+- Head tracking smoothing by [weltensturm](https://github.com/weltensturm) in #2.
+- A fully custom in-game tutorial.
+- Optional (off by default) head tracking for animations of player taking damage.
+- A way to slightly tweak the player's height.
+- `gameplay.show_tutorial`, `gameplay.track_damage`, `player.height_multiplier` erfps2.toml keys.
+
+### Fixed
+
+- Camera stabilizer not doing its job.
+- Excessively checking for config updates by [weltensturm](https://github.com/weltensturm) in #2.
+- Camera clipping when the character is knocked back by damage by [weltensturm](https://github.com/weltensturm) in #3.
+- Checking if HUD is disabled in the game settings.
+- The telescope item and the Bird Eye telescope interactable.
+
+### Changed
+
+- Increased the rate at which the camera tracks lock on targets in first person.
+- Optimized codebase for binary size and performance.
+
 ## [0.2.0] 2026-01-27
 
 ### Added
