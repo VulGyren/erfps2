@@ -1,10 +1,7 @@
 use std::{ffi::c_void, mem, ptr};
 
 use eldenring::{
-    cs::{
-        CSCam, CSChrBehaviorDataModule, CSChrPhysicsModule, CSFeManImp, ChrCtrl, ChrExFollowCam,
-        ChrIns, PlayerIns,
-    },
+    cs::{CSCam, CSChrPhysicsModule, CSFeManImp, ChrCtrl, ChrExFollowCam, ChrIns, PlayerIns},
     fd4::FD4Time,
 };
 use fromsoftware_shared::{F32Vector4, F32ViewMatrix, FromStatic};
@@ -20,15 +17,16 @@ use crate::{
     program::Program,
     rva::{
         CAMERA_STEP_UPDATE_RVA, CHR_ROOT_MOTION_RVA, FOLLOW_CAM_FOLLOW_RVA, MMS_UPDATE_CHR_CAM_RVA,
-        POSTURE_CONTROL_RIGHT_RVA, PUSH_TAE700_MODIFIER_RVA, SET_WWISE_LISTENER_RVA,
-        UPDATE_CHR_MODEL_POS_RVA, UPDATE_FE_MAN_RVA, UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
+        POSTURE_CONTROL_RIGHT_RVA, SET_WWISE_LISTENER_RVA, UPDATE_CHR_MODEL_POS_RVA,
+        UPDATE_FE_MAN_RVA, UPDATE_FOLLOW_CAM_RVA, UPDATE_LOCK_TGT_RVA,
     },
     shaders::screen::correct_screen_coords,
 };
 
 pub mod install;
+pub mod tae;
 
-pub fn init_camera_update(program: Program) -> eyre::Result<()> {
+pub fn hook_camera(program: Program) -> eyre::Result<()> {
     unsafe {
         let update = program
             .derva_ptr::<unsafe extern "C" fn(*mut c_void, *const FD4Time)>(CAMERA_STEP_UPDATE_RVA);
@@ -109,23 +107,6 @@ pub fn init_camera_update(program: Program) -> eyre::Result<()> {
                 }
 
                 original(param_1, &param_2)
-            }
-        });
-
-        let push_tae700_modifier = program
-            .derva_ptr::<unsafe extern "C" fn(*mut CSChrBehaviorDataModule, *mut [f32; 8])>(
-                PUSH_TAE700_MODIFIER_RVA,
-            );
-
-        hook(push_tae700_modifier, |original| {
-            move |param_1, param_2| {
-                if let Some(player) = PlayerIns::main_player()
-                    && &raw mut player.chr_ins == (*param_1).owner.as_ptr()
-                {
-                    tae700_override(&mut *param_2);
-                }
-
-                original(param_1, param_2);
             }
         });
 

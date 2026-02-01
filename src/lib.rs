@@ -5,7 +5,7 @@ use windows::{
     core::BOOL,
 };
 
-use crate::{hooks::init_camera_update, program::Program, shaders::hook_shaders};
+use crate::{hooks::{hook_camera, tae::hook_tae}, program::Program, shaders::hook_shaders};
 
 mod config;
 mod core;
@@ -22,8 +22,9 @@ mod tutorial;
 fn main() -> eyre::Result<()> {
     let program = Program::try_current()?;
 
-    init_camera_update(program)?;
+    hook_camera(program)?;
     hook_shaders(program)?;
+    hook_tae(program)?;
 
     Ok(())
 }
